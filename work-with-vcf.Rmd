@@ -1,0 +1,250 @@
+---
+title: "Working with VCF files"
+author: "Mark Dunning"
+date: "24 May 2016"
+output: html_document
+---
+
+# Introduction
+
+In this session we:-
+
+- Demonstrate how to call germline variants for a bam file containing aligned reads
+- Explain what a *vcf* file is
+- Loading a *vcf* file into IGV
+- Intersect sets of calls
+- Interrogating vcf files using Bioconductor
+
+## Calling SNVs
+
+We will use the [freebayes](https://github.com/ekg/freebayes#readme) genotype caller for convenience. This was chosen
+
+- freely-available with an open-source licence
+- easy to run
+- gives reasonable results
+
+`freebayes` is a command-line tool that you will need to run from the terminal. As with all command-line tools, we first need to make sure that we are located in the correct directory. Remember that we can *change directory* using the unix command `cd`.
+
+```{}
+cd ~/Course_Materials/Day2/
+```
+
+`freebayes` has already been installed for you on your desktop machine (or in the *docker* image, if you are using that). However, we can make sure that `freebayes` is available by typing `freebayes` at the terminal. This will give a basic description, a version number, and information about how to cite the package (very important if you end-up using the tool to generate results for your paper). Adding the *parameter* `-h` will display more-detailed help about the tool and some examples of how to use it.
+
+```{}
+freebayes
+freebayes -h
+```
+
+We are going to use `freebayes` to call SNVs on some *hapmap* samples. In order to make the SNV-calling run in a reasonable time, we are only considering reads aligned to chromosome 20 in this analysis. In the [Appendix](#appendix) you will see the commands used to create the bam files.
+
+The minimal requirements to run `freebayes` (and why it is appealing for this practical!) are a reference genome and a `.bam` file. The `-f` parameter is used to specify the location of a reference genome in `.fasta` format. 
+
+***Please don't run this next command*** 
+
+```{}
+freebayes -f ../ref_data/human_g1k_v37.fasta data/hapmap/NA12878.chr20.bam
+```
+
+If you did run that command, you would quickly see that the screen gets filled with lots of text. These are the calls that `freebayes` is making being printed to the screen (the standard output for some unix commands). If you find yourself in this situation, a swift press of `CTRL + C` should stop the tool from running.
+
+What we need to do is *direct the output* to a file. We can call the output file anything we like, but it is advisable to make the name relatable to the name of the input. If we are in the situation of calling genotypes on many samples, with many different callers, then we want to be able to identify the processing used on each sample.
+
+Although it is not mandatory, we give the output file the extension `.vcf`. The `.vcf` format is a commonly-adopted standard for variant calls, which we will look into detail now.
+
+```{}
+freebayes -f ../ref_data/human_g1k_v37.fasta data/hapmap/NA12878.chr20.bam > NA12878.chr20.freebayes.vcf
+```
+
+## Understanding the vcf format
+
+The vcf format was initially developed by the [1000 Genomes Project](http://www.1000genomes.org/wiki/Analysis/vcf4.0), and ownership has been subsequently transferred to [Global Alliance for Genomics and Health Data Working group file format team](http://ga4gh.org/#/fileformats-team).
+
+We don't require any specialised software to look at the contents of a vcf file. They *can* be opened in a bog-standard text editor. However, there are several tools that will make our lives easier! For now, navigate to the folder and right-click on `NA12878.chr20.freebayes.vcf`. Select the option to open with `gedit` (a common text editor for Ubuntu).
+
+
+In a similar vein to the bam and sam files we saw earlier, the `.vcf` files contains many lines of header information.
+```{r echo=FALSE,comment=NA}
+cat(system("head NA12878.chr20.freebayes.vcf",intern=TRUE),sep="\n")
+
+```
+
+******
+
+### Exercise
+
+- What version of freebayes was used?
+- What is the file name of the reference genome that was used?
+- How many chromosomes were present in the reference?
+- What was the exact freebayes command used to generate the file?
+
+******
+
+After many more lines of information, we finally get to the details of the actual calls themsevles. This part of the file is tab-delimited; with 10 columns for every call. Shown here is the information about the first five calls
+
+```{r echo=FALSE,comment=NA}
+cat(system("grep -v '##' NA12878.chr20.freebayes.vcf | head -n5",intern = TRUE),sep = "\n")
+```
+
+******
+
+### Exercise
+
+Use the [vcf specification page](http://www.1000genomes.org/wiki/Analysis/vcf4.0) to decipher the meanings of the columns, and discuss with your neighbours
+
+- CHROM
+- POS
+- ID
+- REF
+- ALT
+- QUAL
+- FILTER
+- INFO
+- FORMAT
+- NA12878
+
+******
+
+The first seven columns should look consistent across different genotype callers. In this exercise we have not annotated against known variants, or applied any filtering. So the `ID` and `FILTER` columns are blank.
+
+The contents of the `INFO` and `FORMAT` columns will depend on what variant caller has been used. The `INFO` column contains metrics and other information related to each variant call as a set of `KEY=VALUE` pairs. Each pair is separated by a `;` character. 
+
+The `INFO` for the first variant reads as:-
+
+`AB=0.454545;ABP=3.20771;AC=1;AF=0.5;AN=2;AO=5;CIGAR=1X;DP=11;DPB=11;DPRA=0;EPP=3.44459;EPPR=4.45795;GTI=0;.......`
+
+The meaning of each `KEY=VALUE` pair is given in the header for the `.vcf` file. For instance, one item of interest is `DP` which is described in the header as:- 
+
+```{r echo=FALSE}
+cat(system("grep 'ID=DP,' NA12878.chr20.freebayes.vcf | head -n1",intern=TRUE))
+```
+
+Clearly how many reads were observed at each locus would be a quantity of interest when we come to assess if a particular variant is reliable or not. Later in this session we will see how these variant-specific metrics can be interogated used Bioconductor.
+
+The final column in the file describes the calls for the sample `NA12878`, which was the only sample that we called variants on. In the sample column (`NA12878`) for the first variant we see the entry (`0/1:11:11,5:6:245:5:188:-13.9693,0,-19.1141`). These are values separated by a `:` character and they are interpreted in the same order as dictated by the `FORMAT` column. 
+
+So for this particular variant, in the sample `NA12878` there is a genotype of `0\1` (heterozygous) and a depth of 11.
+
+To understand the vcf format better, we can use another mode of operation of `freebayes` which is to call genotypes on multiple samples simultaneously. We can also specify an exact region of the genome to call genotypes to speed-up the processing.
+
+```{}
+freebayes -f ../ref_data/human_g1k_v37.fasta --region 20:60000-70000 data/hapmap/NA12878.chr20.bam data/hapmap/NA12873.chr20.bam data/hapmap/NA12874.chr20.bam > combined.chr20.subset.freebayes.vcf
+```
+
+******
+
+### Exercise
+
+- What extra calls are produced in this analysis of three samples?
+- What part of the output are altered?
+
+******
+
+One easy way of being able to visualise the calls is to use the IGV browser. Before we do this however, we can do some extra processing to make it easier to process the files. This series of incantations will compress and index the vcf files (similar to how bam files are indexed to produce a `.bai` file). IGV would probably cope fine with reading such relatively-small files, but it is good to get into the habit of processing our files in this manner.
+
+```{}
+
+bgzip -c combined.chr20.subset.freebayes.vcf > combined.chr20.subset.freebayes.vcf.gz
+tabix -p  vcf combined.chr20.subset.freebayes.vcf.gz
+
+bgzip -c NA12878.chr20.freebayes.vcf > NA12878.chr20.freebayes.vcf.gz
+tabix -p vcf NA12878.chr20.freebayes.vcf.gz
+
+```
+
+After running these commands, you should see that the files `combined.chr20.subset.freebayes.vcf.gz`, `combined.chr20.subset.freebayes.vcf.gz.tbi`, `NA12878.chr20.freebayes.vcf.gz` and `NA12878.chr20.freebayes.vcf.gz.tbi` have been created in your working directory.
+
+******
+
+### Exercise
+
+- Load IGV
+- Select the files `NA12878.chr20.freebayes.vcf.gz` and `combined.chr20.subset.freebayes.vcf.gz` from the `File -> Open` menu
+- Navigate to `chr20:60000-70000`
+- Verify that the same information from the vcf is shown in vcf
+- What do the difference colours correspond to?
+
+******
+
+
+
+## Intersecting calls
+
+`bedtools` has some useful tools for overlapping various types of genomic intervals
+
+```{}
+bedtools intersect -header -a NA12878.chr20.freebayes.vcf -b NA12878.chr20.broad_truth_set.20131119.snps_and_indels.genotypes.vcf.gz > NA12878.chr20.freebayes.validated.vcf
+```
+
+```{}
+bedtools intersect -header -a NA12878.chr20.broad_truth_set.20131119.snps_and_indels.genotypes.vcf.gz -b NA12878.chr20.freebayes.vcf -v > NA12878.chr20.freebayes.missing.vcf
+```
+
+
+```{r echo=FALSE}
+if(!file.exists("exons.chr20.bed")){
+  library(TxDb.Hsapiens.UCSC.hg19.knownGene)
+  library(rtracklayer)
+  library(org.Hs.eg.db)
+  
+  tx <- TxDb.Hsapiens.UCSC.hg19.knownGene
+  exons <- exonsBy(tx, "gene")
+  exons.20 <- keepSeqlevels(exons, "chr20")
+  exons.20 <- unlist(exons.20)
+  names(exons.20) <- select(org.Hs.eg.db, keys=names(exons.20), keytype = "ENTREZID",columns="SYMBOL")[,2]
+  seqlevelsStyle(exons.20) <- "Ensembl"
+  export(exons.20,con="exons.chr20.bed")
+}
+```
+
+Selecting exonic calls only.....
+
+```{}
+bedtools intersect -header -a NA12878.chr20.freebayes.vcf -b exons.chr20.bed > NA12878.chr20.exonic.freebayes.vcf
+```
+
+
+## Importing into Bioconductor
+
+```{r message=FALSE}
+library(VariantAnnotation)
+myvcf <- readVcf("NA12878.chr20.1MB.freebayes.vcf","hg19")
+
+```
+
+
+
+# <a name="appendix"></a> Appendix
+
+Commands used to generate bam files for genotype calling
+
+- First, get a copy of the reference genome from the 1000 genomes FTP site
+
+```{}
+wget ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/reference/human_g1k_v37.fasta.gz -P ../ref_data/
+gunzip ../ref_data/human_g1k_v37.fasta.gz
+
+```
+
+- We have already seen how `samtools` can be used to view aligned reads in `.bam` format. In fact, the `.bam` does not need to be stored locally on our desktop machine, and can be an FTP link. Here we `view` the remote link to the bam file and extract only the chromosome 22 reads. 
+
+```{}
+samtools view -h ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/other_exome_alignments/NA19239/exome_alignment/NA19239.mapped.solid.mosaik.YRI.exome.20111114.bam 22 | samtools view -bS - > data/hapmap/NA19239.chr22.bam
+samtools index data/hapmap/NA19239.chr22.bam
+
+```
+
+```{}
+samtools view -h ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/other_exome_alignments/NA19238/exome_alignment/NA19238.mapped.illumina.mosaik.YRI.exome.20111114.bam 22 | samtools view -bS - > data/hapmap/NA19238.chr22.bam
+samtools index data/hapmap/NA19238.chr22.bam
+
+samtools view -h ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/other_exome_alignments/NA19240/exome_alignment/NA19240.mapped.solid.mosaik.YRI.exome.20111114.bam 22 | samtools view -bS - > data/hapmap/NA19240.chr22.bam
+samtools index data/hapmap/NA19240.chr22.bam
+
+```
+
+# References
+
+- [freebayes tutorial](http://clavius.bc.edu/~erik/CSHL-advanced-sequencing/freebayes-tutorial.html)
+- [vcf files tutorial](https://faculty.washington.edu/browning/beagle/intro-to-vcf.html)
+- [bedtools tutorial](http://quinlanlab.org/tutorials/bedtools/bedtools.html)
