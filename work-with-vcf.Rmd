@@ -180,52 +180,6 @@ python /home/dunnin01/software/Platypus_0.8.1/Platypus.py callVariants --refFile
 
 ```
 
-
-## <a name=bedtools></a> Intersecting calls: using bedtools
-
-[bedtools](http://bedtools.readthedocs.io/en/latest/) has some useful tools for overlapping various types of genomic intervals
-
-We will use bedtools to refine our calls to a consensus set (i.e agreed by both callers) and present in exonic regions
-
-```{}
-bedtools intersect -header -a NA12878.chr20.freebayes.vcf -b NA12878.chr20.platypus.vcf > NA12878.chr20.consensus.vcf
-```
-
-******
-
-### Exercise
-
-- The -v option to intersect selects variants that are present in one file but not the other
-- Create a vcf file contains calls made by freebayes, but not playtpus
-- Create a vcf file contains calls made by platypus, but not freebayes
-
-
-******
-
-
-```{r echo=FALSE}
-if(!file.exists("exons.chr20.bed")){
-  library(TxDb.Hsapiens.UCSC.hg19.knownGene)
-  library(rtracklayer)
-  library(org.Hs.eg.db)
-  
-  tx <- TxDb.Hsapiens.UCSC.hg19.knownGene
-  exons <- exonsBy(tx, "gene")
-  exons.20 <- keepSeqlevels(exons, "chr20")
-  exons.20 <- unlist(exons.20)
-  names(exons.20) <- select(org.Hs.eg.db, keys=names(exons.20), keytype = "ENTREZID",columns="SYMBOL")[,2]
-  seqlevelsStyle(exons.20) <- "Ensembl"
-  export(exons.20,con="exons.chr20.bed")
-}
-```
-
-Selecting exonic calls only.....
-
-```{}
-bedtools intersect -header -a NA12878.chr20.consensus.vcf -b exons.chr20.bed > NA12878.chr20.exonic.consensus.vcf
-```
-
-
 ## Importing into Bioconductor
 
 The `VariantAnnotation` package allows `.vcf` files to be imported. 
@@ -324,7 +278,7 @@ inboth2 <- rr.platypus.snv %over% rr.freebayes.snv
 sum(inboth2)
 sum(inboth2) / length(platypus.snv)
 
-freebayes.only <- !rr.freebayes %over% rr.platypus
+freebayes.only <- !rr.freebayes.snv %over% rr.platypus.snv
 sum(freebayes.only)
 
 platypus.only <- !rr.platypus.snv %over% rr.freebayes.snv
@@ -334,10 +288,136 @@ boxplot(rr.freebayes.snv$QUAL ~ inboth)
 
 ```
 
+We might also expect that the depth observed at each variant is indicative of whether it will be called by both tools. We can test this by extracting the `INFO` from the `.vcf` file. Recall that this part of the file contains metadata that is *variant-specific*. 
+
+```{r eval=FALSE}
+info(freebayes.snv)
+```
+
+```{r echo=FALSE}
+info(freebayes.snv)[,1:4]
+```
+
+
 ```{r}
-common.snv <- rr.freebayes.snv[rr.freebayes.snv %over% rr.platypus.snv]
+boxplot(info(freebayes.snv)$DP ~ inboth)
+```
+
+
+```{r}
+common.snv <- freebayes.snv[rr.freebayes.snv %over% rr.platypus.snv]
+```
+
+
+Extra sanity check; make sure the same reference and alternate alleles are reported
+
+```{r}
+rr.freebayes.common <- rr.freebayes.snv[rr.freebayes.snv %over% rr.platypus.snv]
+rr.platypus.common <- rr.platypus.snv[rr.platypus.snv %over% rr.freebayes.snv]
+
+all(rr.platypus.common$REF == rr.freebayes.common$REF)
+all(unlist(rr.platypus.common$ALT) == unlist(rr.freebayes.common$ALT))
 
 ```
+
+`VariantAnnotation` also has methods for being able to write an object to a `.vcf` file
+
+```{r}
+writeVcf(common.snv, file="common.snv.vcf")
+```
+
+
+## Locating variants
+
+With our variants in `GRanges` form, it is possible to interact with the packages
+```{r}
+library(TxDb.Hsapiens.UCSC.hg19.knownGene)
+txdb <- TxDb.Hsapiens.UCSC.hg19.knownGene
+```
+
+```{r}
+seqlevelsStyle(txdb)
+seqlevelsStyle(common.snv) <- "UCSC"
+common.snv <- keepSeqlevels(common.snv,"chr20")
+locs <- locateVariants(common.snv, txdb, CodingVariants())
+
+```
+
+
+
+******
+
+### Exercise
+
+Annotate the coding variants using the `org.Hs.eg.db` package that we saw yesterday
+    - Add the gene symbol
+
+******
+
+
+```{r echo=FALSE}
+library(org.Hs.eg.db)
+symb <- select(org.Hs.eg.db, keys = locs$GENEID, keytype = "ENTREZID",columns="SYMBOL")
+locs$SYMBOL <- symb[,2]
+locs
+```
+
+The `QUERYID` variable is a reference to the original vcf object. 
+
+```{r}
+common.snv.coding <- common.snv[locs$QUERYID]
+writeVcf(common.snv, file="common.snv.vcf")
+```
+
+
+```{r eval=FALSE}
+splt <- split(mcols(locs)$GENEID, mcols(locs)$QUERYID)
+table(sapply(splt, function(x) length(unique(x)) > 1))
+```
+
+```{r echo=FALSE}
+splt <- split(mcols(locs)$GENEID, mcols(locs)$QUERYID)
+table(sapply(splt, function(x) length(unique(x)) > 1))[1:5]
+```
+
+
+```{r eval=FALSE}
+splt <- split(mcols(locs)$QUERYID,mcols(locs)$SYMBOL)
+sapply(splt, function(x) length(unique(x)))
+```
+
+```{r echo=FALSE}
+splt <- split(mcols(locs)$QUERYID,mcols(locs)$SYMBOL)
+sapply(splt, function(x) length(unique(x)))[1:5]
+
+```
+
+
+******
+
+### Exercise
+
+Which gene has the most coding variants?
+
+- verify your answer in IGV
+
+******
+
+
+
+## Predicting Amino acid changes
+
+
+```{r}
+library(BSgenome.Hsapiens.UCSC.hg19)
+coding <- predictCoding(common.snv, txdb, seqSource=Hsapiens)
+table(coding$CONSEQUENCE)
+```
+
+```{r}
+coding[coding$CONSEQUENCE == "nonsense"]
+```
+
 
 
 # <a name="appendix"></a> Appendix
@@ -368,6 +448,54 @@ samtools view -h ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/other_exome_
 samtools index data/hapmap/NA19240.chr22.bam
 
 ```
+
+
+
+## <a name=bedtools></a> Intersecting calls: using bedtools
+
+[bedtools](http://bedtools.readthedocs.io/en/latest/) has some useful tools for overlapping various types of genomic intervals
+
+We will use bedtools to refine our calls to a consensus set (i.e agreed by both callers) and present in exonic regions
+
+```{}
+bedtools intersect -header -a NA12878.chr20.freebayes.vcf -b NA12878.chr20.platypus.vcf > NA12878.chr20.consensus.vcf
+```
+
+******
+
+### Exercise
+
+- The -v option to intersect selects variants that are present in one file but not the other
+- Create a vcf file contains calls made by freebayes, but not playtpus
+- Create a vcf file contains calls made by platypus, but not freebayes
+
+
+******
+
+
+```{r echo=FALSE}
+if(!file.exists("exons.chr20.bed")){
+  library(TxDb.Hsapiens.UCSC.hg19.knownGene)
+  library(rtracklayer)
+  library(org.Hs.eg.db)
+  
+  tx <- TxDb.Hsapiens.UCSC.hg19.knownGene
+  exons <- exonsBy(tx, "gene")
+  exons.20 <- keepSeqlevels(exons, "chr20")
+  exons.20 <- unlist(exons.20)
+  names(exons.20) <- select(org.Hs.eg.db, keys=names(exons.20), keytype = "ENTREZID",columns="SYMBOL")[,2]
+  seqlevelsStyle(exons.20) <- "Ensembl"
+  export(exons.20,con="exons.chr20.bed")
+}
+```
+
+Selecting exonic calls only.....
+
+```{}
+bedtools intersect -header -a NA12878.chr20.consensus.vcf -b exons.chr20.bed > NA12878.chr20.exonic.consensus.vcf
+```
+
+
 
 # References
 
