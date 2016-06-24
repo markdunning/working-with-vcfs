@@ -136,7 +136,7 @@ freebayes -f ../ref_data/human_g1k_v37.fasta --region 20:60000-70000 data/hapmap
 ### Exercise
 
 - What extra calls are produced in this analysis of three samples?
-- What part of the output are altered?
+- What parts of the output are altered?
 
 ******
 
@@ -166,19 +166,41 @@ After running these commands, you should see that the files `combined.chr20.subs
 
 ******
 
+## Using the platypus caller
 
+When learning about SNP-calling, it is worth being able to use more than one caller. In fact, it may be beneficial to use multiple-callers and take the consensus of the calls afterwards.
 
-## Intersecting calls
+The [platypus](http://www.well.ox.ac.uk/platypus) caller from Oxford is another highly-regarded SNP-caller. For the purposes of this tutorial, is it also relatively easy to run
 
-`bedtools` has some useful tools for overlapping various types of genomic intervals
-
-```{}
-bedtools intersect -header -a NA12878.chr20.freebayes.vcf -b NA12878.chr20.broad_truth_set.20131119.snps_and_indels.genotypes.vcf.gz > NA12878.chr20.freebayes.validated.vcf
-```
+The command to run `platypus` with the default parameters is as follows:-
 
 ```{}
-bedtools intersect -header -a NA12878.chr20.broad_truth_set.20131119.snps_and_indels.genotypes.vcf.gz -b NA12878.chr20.freebayes.vcf -v > NA12878.chr20.freebayes.missing.vcf
+### N.B tidy-up the path to platypus
+python /home/dunnin01/software/Platypus_0.8.1/Platypus.py callVariants --refFile ../ref_data/human_g1k_v37.fasta --bamFiles data/hapmap/NA12878.chr20.bam --regions 20 -o NA12878.chr20.platypus.vcf 
+
 ```
+
+
+## <a name=bedtools></a> Intersecting calls: using bedtools
+
+[bedtools](http://bedtools.readthedocs.io/en/latest/) has some useful tools for overlapping various types of genomic intervals
+
+We will use bedtools to refine our calls to a consensus set (i.e agreed by both callers) and present in exonic regions
+
+```{}
+bedtools intersect -header -a NA12878.chr20.freebayes.vcf -b NA12878.chr20.platypus.vcf > NA12878.chr20.consensus.vcf
+```
+
+******
+
+### Exercise
+
+- The -v option to intersect selects variants that are present in one file but not the other
+- Create a vcf file contains calls made by freebayes, but not playtpus
+- Create a vcf file contains calls made by platypus, but not freebayes
+
+
+******
 
 
 ```{r echo=FALSE}
@@ -200,18 +222,122 @@ if(!file.exists("exons.chr20.bed")){
 Selecting exonic calls only.....
 
 ```{}
-bedtools intersect -header -a NA12878.chr20.freebayes.vcf -b exons.chr20.bed > NA12878.chr20.exonic.freebayes.vcf
+bedtools intersect -header -a NA12878.chr20.consensus.vcf -b exons.chr20.bed > NA12878.chr20.exonic.consensus.vcf
 ```
 
 
 ## Importing into Bioconductor
 
+The `VariantAnnotation` package allows `.vcf` files to be imported. 
 ```{r message=FALSE}
 library(VariantAnnotation)
-myvcf <- readVcf("NA12878.chr20.1MB.freebayes.vcf","hg19")
+freebayes.calls <- readVcf("NA12878.chr20.freebayes.vcf","hg19")
+platypus.calls <- readVcf("NA12878.chr20.platypus.vcf","hg19")
+length(freebayes.calls)
+length(platypus.calls)
 
 ```
 
+
+
+As we have seen already, typing the name of the object will print a summary to the screen.
+```{r}
+freebayes.calls
+```
+
+header information can be extracted using `header`. This will contain the definitions of all the per-genotype and per-sample information stored in the file
+
+```{r}
+header(freebayes.calls)
+info(header(freebayes.calls))
+geno(header(freebayes.calls))
+```
+
+The coordinates of the variants are given by `rowRanges`. The output is a familar `GRanges` object. Extra metadata included in this object include the reference (`REF`), alternate (`ALT`) alleles an a quality score. The quality score will depend on the caller being used.
+
+```{r}
+rowRanges(freebayes.calls)
+```
+
+```{r}
+quals <- rowRanges(freebayes.calls)$QUAL
+hist(quals)
+```
+
+`freebayes` has called a mixture of SNVs and other events such as indels. For the rest of the tutorial we will focus on SNVs. Variants that are not SNVs are easy to identify by-eye because the `REF` or `ALT` allele does not have a length of 1.
+
+```{r echo=FALSE}
+rowRanges(freebayes.calls)[!isSNV(freebayes.calls)]
+```
+
+Fortunately, `VariantAnnotation` has a useful function `isSNV` that we allow us to identify SNVs
+
+******
+
+### Exercise
+
+- Use `isSNV` to find how many SNVs were called by freebayes and playpus respectively
+- What percentages are these of the total number of calls
+
+******
+
+
+```{r echo=FALSE}
+table(isSNV(freebayes.calls)) 
+table(isSNV(platypus.calls))
+table(isSNV(freebayes.calls))/length(freebayes.calls)
+table(isSNV(platypus.calls))/length(platypus.calls)
+
+```
+
+We can now restrict the two call sets to just SNVs
+```{r}
+freebayes.snv <- freebayes.calls[isSNV(freebayes.calls)]
+length(freebayes.snv)
+platypus.snv <- platypus.calls[isSNV(platypus.calls)]
+length(platypus.snv)
+```
+
+
+
+******
+
+### Exercise
+
+- Obtain the coordinates of the platypus and freebayes SNVs
+- How many SNPs are in-common?
+- How many SNPS are unique to freebayes>
+    + unique to platypus?
+- Does the quality score differ between calls between tools, and those exclusive to freebayes?
+
+******
+
+```{r}
+rr.freebayes.snv <- rowRanges(freebayes.snv)
+rr.platypus.snv <- rowRanges(platypus.snv)
+
+inboth <- rr.freebayes.snv %over% rr.platypus.snv
+sum(inboth)
+sum(inboth) / length(freebayes.snv)
+
+inboth2 <- rr.platypus.snv %over% rr.freebayes.snv
+sum(inboth2)
+sum(inboth2) / length(platypus.snv)
+
+freebayes.only <- !rr.freebayes %over% rr.platypus
+sum(freebayes.only)
+
+platypus.only <- !rr.platypus.snv %over% rr.freebayes.snv
+sum(platypus.only)
+
+boxplot(rr.freebayes.snv$QUAL ~ inboth)
+
+```
+
+```{r}
+common.snv <- rr.freebayes.snv[rr.freebayes.snv %over% rr.platypus.snv]
+
+```
 
 
 # <a name="appendix"></a> Appendix
