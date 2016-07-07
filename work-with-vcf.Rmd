@@ -69,16 +69,6 @@ cat(system("head NA12878.chr20.freebayes.vcf",intern=TRUE),sep="\n")
 
 ```
 
-******
-
-### Exercise
-
-- What version of freebayes was used?
-- What is the file name of the reference genome that was used?
-- How many chromosomes were present in the reference?
-- What was the exact freebayes command used to generate the file?
-
-******
 
 After many more lines of information, we finally get to the details of the actual calls themsevles. This part of the file is tab-delimited; with 10 columns for every call. Shown here is the information about the first five calls
 
@@ -107,13 +97,25 @@ Use the [vcf specification page](http://www.1000genomes.org/wiki/Analysis/vcf4.0
 
 The first seven columns should look consistent across different genotype callers. In this exercise we have not annotated against known variants, or applied any filtering, so the `ID` and `FILTER` columns are blank. In some `.vcf` files these might be populated with dbSNP IDs or flags such as `PASS` / `FAIL`.
 
-The contents of the `INFO` and `FORMAT` columns will depend on what variant caller has been used. The `INFO` column contains metrics and other information related to each variant call as a set of `KEY=VALUE` pairs. Each pair is separated by a `;` character. 
+The contents of the `INFO` and `FORMAT` columns will depend on what variant caller has been used. The `INFO` column contains metrics and other information related to each variant call as a set of `KEY` pairs. Each pair is separated by a `;` character. 
 
 The `INFO` for the first variant reads as:-
 
 `AB=0.454545;ABP=3.20771;AC=1;AF=0.5;AN=2;AO=5;CIGAR=1X;DP=11;DPB=11;DPRA=0;EPP=3.44459;EPPR=4.45795;GTI=0;.......`
 
-The meaning of each `KEY=VALUE` pair is given in the header for the `.vcf` file. For instance, one item of interest is `DP` which is described in the header as:- 
+```{r echo=FALSE}
+library(stringr)
+info <- "AB=0.454545;ABP=3.20771;AC=1;AF=0.5;AN=2;AO=5;CIGAR=1X;DP=11;DPB=11;DPRA=0;EPP=3.44459;EPPR=4.45795;GTI=0;LEN=1;MEANALT=1;MQM=60;MQMR=60;NS=1;NUMALT=1;ODDS=21.8887;PAIRED=1;PAIREDR=1;PAO=0;PQA=0;PQR=0;PRO=0;QA=188;QR=245;RO=6;RPL=1;RPP=6.91895;RPPR=3.0103;RPR=4;RUN=1;SAF=2;SAP=3.44459;SAR=3;SRF=5;SRP=8.80089;SRR=1;TYPE=snp;technology.ILLUMINA=1"
+
+tmp <- sapply(str_split(info, ";")[[1]],function(x) str_split(x, "="))
+df <- t(do.call(cbind, tmp))
+colnames(df) <- c("Key","Value")
+knitr::kable(df[1:10,])
+
+```
+
+
+The meaning of each `KEY`  is given in the header for the `.vcf` file. For instance, one item of interest is `DP` which is described in the header as:- 
 
 ```{r echo=FALSE}
 cat(system("grep 'ID=DP,' NA12878.chr20.freebayes.vcf | head -n1",intern=TRUE))
@@ -126,6 +128,18 @@ The final column in the file describes the calls for the sample `NA12878`, which
 (`0/1:11:11,5:6:245:5:188:-13.9693,0,-19.1141`). 
 
 These are values separated by a `:` character and they are interpreted in the same order as dictated by the `FORMAT` column. 
+
+```{r echo=FALSE}
+gt <- "0/1:11:11,5:6:245:5:188:-13.9693,0,-19.1141"
+ky <- "GT:DP:DPR:RO:QR:AO:QA:GL"
+values <- unlist(str_split(gt, ":"))
+keys <- unlist(str_split(ky, ":"))
+desc <- c("Genotype","Read Depth","Number of observation for each allele","Reference allele observation count","Sum of quality of the reference observations","Alternate allele observation count","Sum of quality of the alternate observations","Genotype Likelihood, log10-scaled likelihoods of the data given the called genotype for each possible genotype generated from the reference and alternate alleles given the sample ploidy")
+df <- data.frame(keys,values,desc)
+colnames(df) <- c("Key", "Value","Description")
+knitr::kable(df)
+```
+
 
 So for this particular variant, in the sample `NA12878` there is a genotype of `0\1` (heterozygous) and a depth of 11.
 
@@ -230,6 +244,63 @@ info(header(freebayes.calls))[1:3,]
 geno(header(freebayes.calls))[1:3,]
 ```
 
+
+## INFO
+
+
+```{r}
+freebayes.info <- info(freebayes.calls)
+freebayes.info
+```
+
+******
+
+### Exercise
+
+- Use `isSNV` to find how many SNVs were called by freebayes and playpus respectively
+- What percentages are these of the total number of calls
+
+******
+
+
+```{r echo=FALSE}
+table(isSNV(freebayes.calls)) 
+table(isSNV(platypus.calls))
+table(isSNV(freebayes.calls))/length(freebayes.calls)
+table(isSNV(platypus.calls))/length(platypus.calls)
+
+```
+
+We can now restrict the two call sets to just SNVs
+```{r}
+freebayes.snv <- freebayes.calls[isSNV(freebayes.calls)]
+length(freebayes.snv)
+platypus.snv <- platypus.calls[isSNV(platypus.calls)]
+length(platypus.snv)
+```
+
+******
+
+
+
+
+## Genotype information
+
+```{r}
+freebayes.geno <- geno(freebayes.snv)
+freebayes.geno
+dp <- freebayes.geno$DP
+ao <- freebayes.geno$AO
+ro <- freebayes.geno$RO
+head(dp)
+head(ao)
+head(ro)
+plot(unlist(ao[,1]), unlist(ro[,1]))
+```
+
+
+
+
 The coordinates of the variants are given by `rowRanges`. The output is a familar `GRanges` object. Extra metadata included in this object include the reference (`REF`), alternate (`ALT`) alleles an a quality score. The quality score will depend on the caller being used.
 
 ```{r eval=FALSE}
@@ -264,46 +335,20 @@ rowRanges(subset)
 ```
 
 
-******
 
-### Exercise
-
-- Use `isSNV` to find how many SNVs were called by freebayes and playpus respectively
-- What percentages are these of the total number of calls
-
-******
-
-
-```{r echo=FALSE}
-table(isSNV(freebayes.calls)) 
-table(isSNV(platypus.calls))
-table(isSNV(freebayes.calls))/length(freebayes.calls)
-table(isSNV(platypus.calls))/length(platypus.calls)
-
-```
-
-We can now restrict the two call sets to just SNVs
-```{r}
-freebayes.snv <- freebayes.calls[isSNV(freebayes.calls)]
-length(freebayes.snv)
-platypus.snv <- platypus.calls[isSNV(platypus.calls)]
-length(platypus.snv)
-```
-
-******
 
 ### Exercise
 
 - Obtain the coordinates of the platypus and freebayes SNVs
 - How many SNPs are in-common?
     + Recall the %over% function from yesterday....
-- How many SNPS are unique to freebayes>
+- How many SNPS are unique to freebayes
     + unique to platypus?
 - Does the quality score differ between calls between made by both tools, and those exclusive to freebayes?
 
 ******
 
-```{r}
+```{r echo=FALSE}
 rr.freebayes.snv <- rowRanges(freebayes.snv)
 rr.platypus.snv <- rowRanges(platypus.snv)
 
@@ -346,17 +391,6 @@ Finally, we define our set of common SNVs
 common.snv <- freebayes.snv[rr.freebayes.snv %over% rr.platypus.snv]
 ```
 
-
-Extra sanity check; make sure the same reference and alternate alleles are reported
-
-```{r}
-rr.freebayes.common <- rr.freebayes.snv[rr.freebayes.snv %over% rr.platypus.snv]
-rr.platypus.common <- rr.platypus.snv[rr.platypus.snv %over% rr.freebayes.snv]
-
-all(rr.platypus.common$REF == rr.freebayes.common$REF)
-all(unlist(rr.platypus.common$ALT) == unlist(rr.freebayes.common$ALT))
-
-```
 
 `VariantAnnotation` also has methods for being able to write an object to a `.vcf` file
 
@@ -445,59 +479,10 @@ Given that we have found variants within coding sequences, we probably want to k
 
 Determining whether a change at a particular base will lead to a different amino acid can be performed using one of the many `BSgenome...` packages in Bioconductor. These packages provide a pre-built database of genome sequence for various organisms. They allow us to query particular regions of the genome and return the results in a `Biostrings`-compatible format. We have already seen that `Biostrings` allows us to perform various computations on DNA sequences; including the ability to translate DNA to RNA. 
 
-Lets go through an example of how `BSgenome` can help us with the first coding variant.
-
-```{r}
-locs[1]
-common.coding.ranges[1]
-```
-
-
-If we view this variant in `IGV` we will see the that position is the third base in a codon. So if we want the sequence of the whole codon we have to go two bases upstream
-
-```{r}
-locs.codon <- resize(common.coding.ranges[1],3,fix = "end")
-```
-
-The `getSeq` function can be used to obtain the genome sequence at this coordinates.
+There is a function, `predictCoding` that will do all the predictions for us. In order to make use of this function, we need to have loaded a pre-built genome in `Biostrings` format. There are many such packages listed on the bioconductor web page. The one we need is `BSgenome.Hsapiens.UCSC.hg19`
 
 ```{r}
 library(BSgenome.Hsapiens.UCSC.hg19)
-codon.seq <- getSeq(BSgenome.Hsapiens.UCSC.hg19, locs.codon)
-codon.seq
-codon.seq[[1]]
-```
-
-`Biostrings` has a `translate` function. The result should agree with what you see in IGV.
-
-```{r}
-translate(codon.seq[[1]])
-```
-
-Now what happens if we replace the variant base with it's alternate?
-
-```{r}
-translate(replaceLetterAt(codon.seq[[1]],3,"C"))
-```
-
-In this case we don't observe any change in amino acid, so this is an example of a *synonymous* variant. However, repeating for the second coding variants does reveal a change; a *non-synonymous* variant.
-
-(we need to take care here as the variant observed is on the *reverse* strand)
-
-```{r}
-locs[2]
-common.coding.ranges[2]
-locs.codon <- resize(common.coding.ranges[2],3,fix = "start")
-locs.codon
-codon.seq <- getSeq(BSgenome.Hsapiens.UCSC.hg19, locs.codon)
-codon.seq
-translate(complement(codon.seq[[1]]))
-translate(complement(replaceLetterAt(codon.seq[[1]],3,"A")))
-```
-
-Although it is useful to see what might be going-on under the hoof, we clearly we cannot go through all variants in such detail. Fortunately, there is a function, `predictCoding` that will do all the predictions for us.
-
-```{r}
 coding.pred <- predictCoding(common.coding.snv, txdb, seqSource=Hsapiens)
 ```
 
