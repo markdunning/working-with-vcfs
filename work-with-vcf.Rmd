@@ -738,5 +738,6 @@ bedtools intersect -header -a NA12878.chr20.consensus.vcf -b exons.chr20.bed > N
 # References
 
 - [freebayes tutorial](http://clavius.bc.edu/~erik/CSHL-advanced-sequencing/freebayes-tutorial.html)
+- [freebayes tutorial 2](https://libraries.io/github/benjaypunto/freebayes)
 - [vcf files tutorial](https://faculty.washington.edu/browning/beagle/intro-to-vcf.html)
 - [bedtools tutorial](http://quinlanlab.org/tutorials/bedtools/bedtools.html)
