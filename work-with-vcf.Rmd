@@ -70,17 +70,7 @@ cat(system("head NA12878.chr20.freebayes.vcf",intern=TRUE),sep="\n")
 ```
 
 
-After many more lines of information, we finally get to the details of the actual calls themsevles. This part of the file is tab-delimited; with 10 columns for every call. Shown here is the information about the first five calls
-
-```{r echo=FALSE,comment=NA}
-cat(system("grep -v '##' NA12878.chr20.freebayes.vcf | head -n5",intern = TRUE),sep = "\n")
-```
-
-******
-
-### Exercise
-
-Use the [vcf specification page](http://www.1000genomes.org/wiki/Analysis/vcf4.0) to decipher the meanings of the columns, and discuss with your neighbours
+After many more lines of information, we finally get to the details of the actual calls themsevles. This part of the file is tab-delimited; with 10 columns for every call. The [vcf specification page](http://www.1000genomes.org/wiki/Analysis/vcf4.0) gives details of what should be contained in each column
 
 - CHROM
 - POS
@@ -93,7 +83,12 @@ Use the [vcf specification page](http://www.1000genomes.org/wiki/Analysis/vcf4.0
 - FORMAT
 - NA12878
 
-******
+Shown here is the information about the first five calls
+
+```{r echo=FALSE,comment=NA}
+cat(system("grep -v '##' NA12878.chr20.freebayes.vcf | head -n5",intern = TRUE),sep = "\n")
+```
+
 
 The first seven columns should look consistent across different genotype callers. In this exercise we have not annotated against known variants, or applied any filtering, so the `ID` and `FILTER` columns are blank. In some `.vcf` files these might be populated with dbSNP IDs or flags such as `PASS` / `FAIL`.
 
@@ -102,6 +97,8 @@ The contents of the `INFO` and `FORMAT` columns will depend on what variant call
 The `INFO` for the first variant reads as:-
 
 `AB=0.454545;ABP=3.20771;AC=1;AF=0.5;AN=2;AO=5;CIGAR=1X;DP=11;DPB=11;DPRA=0;EPP=3.44459;EPPR=4.45795;GTI=0;.......`
+
+which we can interpret as:- 
 
 ```{r echo=FALSE}
 library(stringr)
@@ -115,13 +112,23 @@ knitr::kable(df[1:10,])
 ```
 
 
-The meaning of each `KEY`  is given in the header for the `.vcf` file. For instance, one item of interest is `DP` which is described in the header as:- 
+The meaning of each `KEY`  is given in the header for the `.vcf` file.
 
 ```{r echo=FALSE}
+cat(system("grep 'ID=AB,' NA12878.chr20.freebayes.vcf | head -n1",intern=TRUE))
+cat(system("grep 'ID=ABP,' NA12878.chr20.freebayes.vcf | head -n1",intern=TRUE))
+cat(system("grep 'ID=AC,' NA12878.chr20.freebayes.vcf | head -n1",intern=TRUE))
+cat(system("grep 'ID=AF,' NA12878.chr20.freebayes.vcf | head -n1",intern=TRUE))
+cat(system("grep 'ID=AN,' NA12878.chr20.freebayes.vcf | head -n1",intern=TRUE))
+cat(system("grep 'ID=AO,' NA12878.chr20.freebayes.vcf | head -n1",intern=TRUE))
+cat(system("grep 'ID=CIGAR,' NA12878.chr20.freebayes.vcf | head -n1",intern=TRUE))
 cat(system("grep 'ID=DP,' NA12878.chr20.freebayes.vcf | head -n1",intern=TRUE))
+cat(system("grep 'ID=DPB,' NA12878.chr20.freebayes.vcf | head -n1",intern=TRUE))
+cat(system("grep 'ID=DPRA,' NA12878.chr20.freebayes.vcf | head -n1",intern=TRUE))
+
 ```
 
-Clearly how many reads were observed at each locus would be a quantity of interest when we come to assess if a particular variant is reliable or not. Later in this session we will see how these variant-specific metrics can be interogated used Bioconductor.
+
 
 The final column in the file describes the calls for the sample `NA12878`, which was the only sample that we called variants on. In the sample column (`NA12878`) for the first variant we see the entry 
 
@@ -146,7 +153,12 @@ So for this particular variant, in the sample `NA12878` there is a genotype of `
 To understand the vcf format better, we can use another mode of operation of `freebayes` which is to call genotypes on multiple samples simultaneously. We can also specify an exact region of the genome to call genotypes to speed-up the processing.
 
 ```{}
-freebayes -f ../ref_data/human_g1k_v37.fasta --region 20:60000-10060000 data/hapmap/NA12878.chr20.bam data/hapmap/NA12873.chr20.bam data/hapmap/NA12874.chr20.bam > combined.chr20.subset.freebayes.vcf
+freebayes -f ../ref_data/human_g1k_v37.fasta --region 20:500000-800000 data/hapmap/NA12878.chr20.bam data/hapmap/NA12873.chr20.bam data/hapmap/NA12874.chr20.bam > combined.chr20.subset.freebayes.vcf
+
+```
+
+```{r echo=FALSE}
+cat(system("grep -v '##' combined.chr20.subset.freebayes.vcf | head -n5",intern = TRUE),sep = "\n")
 ```
 
 
@@ -179,37 +191,6 @@ After running these commands, you should see that the files `combined.chr20.subs
     
 ******
 
-## Using the platypus caller
-
-When learning about SNP-calling, it is worth being able to use more than one caller. In fact, it may be beneficial to use multiple-callers and take the consensus of the calls afterwards.
-
-The [platypus](http://www.well.ox.ac.uk/platypus) caller from Oxford is another highly-regarded SNP-caller. For the purposes of this tutorial, is it also relatively easy to run
-
-The command to run `platypus` with the default parameters is as follows:-
-
-```{}
-### N.B tidy-up the path to platypus
-python /home/dunnin01/software/Platypus_0.8.1/Platypus.py callVariants --refFile ../ref_data/human_g1k_v37.fasta --bamFiles data/hapmap/NA12878.chr20.bam --regions 20 -o NA12878.chr20.platypus.vcf 
-
-bgzip -c NA12878.chr20.platypus.vcf  > NA12878.chr20.platypus.vcf.gz
-tabix -p  vcf NA12878.chr20.platypus.vcf.gz
-
-```
-
-
-As before, we can examine the contents of the `.vcf` file produced.
-
-```{r, echo=FALSE,comment=NA}
-cat(system("head NA12878.chr20.platypus.vcf",intern=TRUE),sep="\n")
-```
-
-
-```{r echo=FALSE,comment=NA}
-cat(system("grep -v '##' NA12878.chr20.platypus.vcf | head -n5",intern = TRUE),sep = "\n")
-```
-
-
-
 To dig-into these files further, we will use tools within Bioconductor. Our goal will be to find calls that are in common between the two different calling methods, and what SNPs occur within coding regions. For completeness, we note that other command-line tools can be used to perform these operations (the [bedtools](http://bedtools.readthedocs.io/en/latest/) suite for example). However, we should be reasonably comfortable with R by now and the package we use interacts nicely with the `GenomicRanges` concepts we discussed yesterday.
 
 ## Importing into Bioconductor
@@ -218,17 +199,18 @@ To dig-into these files further, we will use tools within Bioconductor. Our goal
 
 The `VariantAnnotation` package allows `.vcf` files to be imported. The `readVcf` function can be used and requires the file of a vcf file. You also need to specify a genome name.
 
-```{r}
+```{r message=FALSE}
+library(VariantAnnotation)
 hapmap.vcf <- readVcf("combined.chr20.subset.freebayes.vcf","hg19")
 
 ```
 
-As we have seen already with other Bioconductor objects, typing the name of the object will print a summary to the screen. In the case of a `CollapsedVCF` object this is very detailed
+As we have seen already with other Bioconductor objects, typing the name of the object will print a summary to the screen. In the case of a "`CollapsedVCF`" object this is very detailed
 ```{r}
 hapmap.vcf
 ```
 
-The "header"" information can be extracted using `header`. This will contain the definitions of all the per-genotype (`INFO`) and per-sample information stored in the file
+The "header" information can be extracted using `header`. This will contain the definitions of all the per-genotype (`INFO`) and per-sample information stored in the file
 
 ```{r eval=FALSE}
 header(hapmap.vcf)
@@ -243,35 +225,37 @@ geno(header(hapmap.vcf))[1:3,]
 
 ## `INFO`
 
-As described above, the `INFO` column in a `.vcf` file gives per-variant metadata as a series of key-value pairs. We can interrogate these data using the `info` function, which returns a data-frame-like object.
+As described above, the `INFO` column in a `.vcf` file gives per-variant metadata as a series of key-value pairs. We can interrogate these data using the `info` function, which returns a data-frame-like object. The name ofe each row is derived from the 
 
 ```{r eval=FALSE}
 info(hapmap.vcf)
 ```
 
 ```{r echo=FALSE}
-info(hapmap.vcf)[,1:5]
+info(hapmap.vcf)[1:3,1:5]
 ```
 
-`NS` represents the number of samples with data. We would expect this to be 3 in all cases. However, as we are dealing with low-coverage data there are some sites
+`NS` represents the number of samples with data. We would expect this to be 3 in all cases. However, as we are dealing with low-coverage data there are some sites data could not be observed for all samples
 
 ```{r}
 summary(info(hapmap.vcf)$NS)
-infoMat <- info(hapmap.vcf)
 ```
 
 ```{r eval=FALSE}
+infoMat <- info(hapmap.vcf)
 infoMat[info(hapmap.vcf)$NS==1,]
 ```
 
 ```{r echo=FALSE}
+infoMat <- info(hapmap.vcf)
 infoMat[info(hapmap.vcf)$NS==1,1:5]
 ```
 
-`DP` gives the depth observed at each position
+`DP` gives the depth observed at each position, which is given to us in the form of a vector. By looking at the distribtion of the depths, we see some variants with extremely low coverage. Later-on, we will see how we can develop filters to remove unreliable calls from our dataset. Variants with low depth would seem to be a good candidate for exclusion.
 
 ```{r}
 hist(infoMat$DP)
+table(infoMat$DP)
 ```
 
 The columns we have looked at, `DP` and `NS` have both returned vectors when we extract them from the data frame. However, this is not the case for all columns in the data frame.
@@ -296,99 +280,95 @@ We can find a few records where more than one type of variant is found.
 infoMat[numVars>1,]
 ```
 
-```{r}
-infoMat[numVars>1,1:5]
-```
-
-Select only positions where a single type of variant was found
-
-```{r}
-hapmap.vcf.singleVar <- hapmap.vcf[numVars==1]
-```
-with this new object, we need to create a new info matrix
-
-
-```{r}
-infoMat.new <- info(hapmap.vcf.singleVar)
-```
-
-******
-
-### Exercise
-
-Do we still have any variants without data in all samples?
-
-- Create a new object where data was observed in all samples
-    + call it `hapmap.vcf.singleVar.fullData`
-******
-
 ```{r echo=FALSE}
-table(info(hapmap.vcf.singleVar)$NS)
-hapmap.vcf.singleVar.fullData <- hapmap.vcf.singleVar[infoMat.new$NS==3]
+infoMat[numVars>1,][1:3,1:5]
 ```
 
 
-## Looking at genotypes
+## Accessing genotypes
 
-`geno` gives the genotype information
+The called genotypes can be accessed using the `geno` function. Recall that in the `.vcf` file, we have one column of genotype information for each sample, with each column consisting of `key:value` pairs. Using `geno` we can access all the values for a particular keys and be able to compare across samples. Usually each entry is `0/0` for a homozygous reference, `0/1` for a heterozygous call and `1/1` for a homozyous alternate allele.
+
 ```{r}
-geno(hapmap.vcf.singleVar.fullData)
-head(geno(hapmap.vcf.singleVar.fullData)$GT)
-
+geno(hapmap.vcf)
+head(geno(hapmap.vcf)$GT)
 ```
 
+An entry of `.` indicates a position where no call could be made due to insufficient data. Moreover, we can also find `0/2` and `1/2` in rare cases where a second alternative allele was found. With `table` we can tabulate the calls between one sample and another
+
 ```{r}
-called <- apply(geno(hapmap.vcf.singleVar.fullData)$GT, 2,function(x) x !="0/0")
+table(geno(hapmap.vcf)$GT[,1])
+table(geno(hapmap.vcf)$GT[,2])
+table(geno(hapmap.vcf)$GT[,1], geno(hapmap.vcf)$GT[,2])
+```
+
+A common way to visualise these overlaps is to use a *venn diagram*. We can generate the venn diagram using the `limma` package (a popular package for the analysis of microarray data). First of all we need to create a data frame containing `0`s or `1` (or equivalenly `TRUE` or `FALSE`) depending on whether a variant was called in each sample. We can do this by creating three separate vectors and combining into a data frame. 
+
+```{r}
+called.NA12878 <- geno(hapmap.vcf)$GT[,1] != "0/0"
+called.NA12873 <- geno(hapmap.vcf)$GT[,2] != "0/0"
+called.NA12874 <- geno(hapmap.vcf)$GT[,3] != "0/0"
+
+called <- data.frame(called.NA12878, called.NA12873,called.NA12874)
+head(called)
+head(geno(hapmap.vcf)$GT)
+```
+
+*N.B* a more sophisticated method would to use an `apply` statement
+
+```{r}
+called2 <- apply(geno(hapmap.vcf)$GT, 2,function(x) x !="0/0")
+```
+
+The `vennDiagram` function can now be used on the data frame we just created.
+
+```{r}
 limma::vennDiagram(called)
 ```
 
-?? some positions with no variants called ??
 
-### Different callers
-
-
-The `VariantAnnotation` package allows `.vcf` files to be imported. The `readVcf` function can be used and requires the file of a vcf file. You also need to specify a genome name.
-```{r message=FALSE}
-library(VariantAnnotation)
-freebayes.calls <- readVcf("NA12878.chr20.freebayes.vcf","hg19")
-platypus.calls <- readVcf("NA12878.chr20.platypus.vcf","hg19")
-```
-
-As we have seen already with other Bioconductor objects, typing the name of the object will print a summary to the screen.
 ```{r}
-freebayes.calls
+all.hom <- which(geno(hapmap.vcf)$GT[,1]=="1/1" & geno(hapmap.vcf)$GT[,2]=="1/1" & geno(hapmap.vcf)$GT[,3]=="1/1")
+geno(hapmap.vcf)$GT[all.hom,]
+hapmap.vcf.homs <- hapmap.vcf[all.hom]
 ```
-
-The "header"" information can be extracted using `header`. This will contain the definitions of all the per-genotype and per-sample information stored in the file
-
-```{r eval=FALSE}
-header(freebayes.calls)
-info(header(freebayes.calls))
-geno(header(freebayes.calls))
-```
-
-```{r echo=FALSE}
-info(header(freebayes.calls))[1:3,]
-geno(header(freebayes.calls))[1:3,]
-```
-
-
-## INFO
 
 
 ```{r}
-freebayes.info <- info(freebayes.calls)
-freebayes.info
+writeVcf(hapmap.vcf.homs, filename = "hapmap.common.hom.vcf")
 ```
+
 
 ******
 
 ### Exercise
 
-- Use `isSNV` to find how many SNVs were called by freebayes and playpus respectively
-- What percentages are these of the total number of calls
+Find all the positions that were called as heterozyous in all samples
+  - Write a vcf file
+
+```{r echo=FALSE}
+
+```
+
 
 ******
+
+## Accessing ranges
+
+The `rowRanges` function will retrieve the positions of our variants as a familiar `GRanges` object.
+
+```{r}
+rowRanges(hapmap.vcf)
+```
+
+
+
+```{r}
+rowRanges(hapmap.vcf)[rowSums(called)==3]
+```
+
+
+
 
 
 ```{r echo=FALSE}
@@ -660,6 +640,8 @@ multiSnpExon
 
 # <a name="appendix"></a> Appendix
 
+## Files used in session
+
 Commands used to generate bam files for genotype calling
 
 - First, get a copy of the reference genome from the 1000 genomes FTP site
@@ -682,9 +664,41 @@ samtools index data/hapmap/NA19239.chr22.bam
 samtools view -h ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/other_exome_alignments/NA19238/exome_alignment/NA19238.mapped.illumina.mosaik.YRI.exome.20111114.bam 22 | samtools view -bS - > data/hapmap/NA19238.chr22.bam
 samtools index data/hapmap/NA19238.chr22.bam
 
+```
+
+```{}
 samtools view -h ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/other_exome_alignments/NA19240/exome_alignment/NA19240.mapped.solid.mosaik.YRI.exome.20111114.bam 22 | samtools view -bS - > data/hapmap/NA19240.chr22.bam
 samtools index data/hapmap/NA19240.chr22.bam
+```
 
+
+## Using the platypus caller
+
+When learning about SNP-calling, it is worth being able to use more than one caller. In fact, it may be beneficial to use multiple-callers and take the consensus of the calls afterwards.
+
+The [platypus](http://www.well.ox.ac.uk/platypus) caller from Oxford is another highly-regarded SNP-caller. For the purposes of this tutorial, is it also relatively easy to run
+
+The command to run `platypus` with the default parameters is as follows:-
+
+```{}
+### N.B tidy-up the path to platypus
+python /home/dunnin01/software/Platypus_0.8.1/Platypus.py callVariants --refFile ../ref_data/human_g1k_v37.fasta --bamFiles data/hapmap/NA12878.chr20.bam --regions 20 -o NA12878.chr20.platypus.vcf 
+
+bgzip -c NA12878.chr20.platypus.vcf  > NA12878.chr20.platypus.vcf.gz
+tabix -p  vcf NA12878.chr20.platypus.vcf.gz
+
+```
+
+
+As before, we can examine the contents of the `.vcf` file produced.
+
+```{r, echo=FALSE,comment=NA}
+cat(system("head NA12878.chr20.platypus.vcf",intern=TRUE),sep="\n")
+```
+
+
+```{r echo=FALSE,comment=NA}
+cat(system("grep -v '##' NA12878.chr20.platypus.vcf | head -n5",intern = TRUE),sep = "\n")
 ```
 
 
