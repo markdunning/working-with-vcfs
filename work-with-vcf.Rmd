@@ -353,179 +353,59 @@ Find all the positions that were called as heterozyous in all samples
 
 ******
 
-## Accessing ranges
+### Case 2: Variant locations
+
+```{r}
+NA12878.calls <- readVcf("NA12878.chr20.freebayes.vcf","hg19")
+seqlevelsStyle(NA12878.calls) <- "UCSC"
+NA12878.calls <- keepSeqlevels(NA12878.calls, "chr20")
+```
 
 The `rowRanges` function will retrieve the positions of our variants as a familiar `GRanges` object.
 
 ```{r}
-rowRanges(hapmap.vcf)
+NA12878.calls.ranges <- rowRanges(NA12878.calls)
 ```
 
 
+## Overlapping with genes
 
-```{r}
-rowRanges(hapmap.vcf)[rowSums(called)==3]
-```
+We saw yesterday how to retrieve the coordinates for all genes in a given organism and genome-build
 
+In order to make-use of this functionality, we first have to make sure that the names of the chromosomes are compatible with the database.
 
+```{r message=FALSE}
+library(TxDb.Hsapiens.UCSC.hg19.knownGene)
+txdb <- TxDb.Hsapiens.UCSC.hg19.knownGene
 
-
-
-```{r echo=FALSE}
-table(isSNV(freebayes.calls)) 
-table(isSNV(platypus.calls))
-table(isSNV(freebayes.calls))/length(freebayes.calls)
-table(isSNV(platypus.calls))/length(platypus.calls)
-
-```
-
-We can now restrict the two call sets to just SNVs
-```{r}
-freebayes.snv <- freebayes.calls[isSNV(freebayes.calls)]
-length(freebayes.snv)
-platypus.snv <- platypus.calls[isSNV(platypus.calls)]
-length(platypus.snv)
 ```
 
 ******
-
-
-
-
-## Genotype information
-
-```{r}
-freebayes.geno <- geno(freebayes.snv)
-freebayes.geno
-dp <- freebayes.geno$DP
-ao <- freebayes.geno$AO
-ro <- freebayes.geno$RO
-head(dp)
-head(ao)
-head(ro)
-plot(unlist(ao[,1]), unlist(ro[,1]))
-```
-
-
-
-
-The coordinates of the variants are given by `rowRanges`. The output is a familar `GRanges` object. Extra metadata included in this object include the reference (`REF`), alternate (`ALT`) alleles an a quality score. The quality score will depend on the caller being used.
-
-```{r eval=FALSE}
-rowRanges(freebayes.calls)
-```
-
-```{r echo=FALSE}
-rowRanges(freebayes.calls)[1:3,]
-```
-
-We can use the `$` operator to extract particular properties of each variant; as if we were extracting the columns of a data frame.
-
-```{r}
-quals <- rowRanges(freebayes.calls)$QUAL
-hist(quals)
-```
-
-The first stage of our analysis is to compute the overlap we have between our two callers (freebayes and platypus). To make our task a bit easier, we will consider just SNPs.
-
-For instance, `freebayes` has called a mixture of SNVs and other events such as indels. Variants that are not SNVs are easy to identify by-eye because the `REF` or `ALT` allele does not have a length of 1.
-
-```{r echo=FALSE}
-rowRanges(freebayes.calls)[!isSNV(freebayes.calls)][1:3,]
-```
-
-Fortunately, `VariantAnnotation` has a useful function `isSNV` that we allow us to identify SNVs
-
-```{r}
-subset <- freebayes.calls[1:5]
-isSNV(subset)
-rowRanges(subset)
-```
-
-
-
 
 ### Exercise
 
-- Obtain the coordinates of the platypus and freebayes SNVs
-- How many SNPs are in-common?
-    + Recall the %over% function from yesterday....
-- How many SNPS are unique to freebayes
-    + unique to platypus?
-- Does the quality score differ between calls between made by both tools, and those exclusive to freebayes?
+Find all variants that have been called within the gene "PRND"
+- this gene has an Entrez ID of "23627"
+- HINT: recall the `exonsBy` function from yesterday....
+- check your answer in IGV
+
+```{r echo=FALSE}
+
+```
 
 ******
-
-```{r echo=FALSE}
-rr.freebayes.snv <- rowRanges(freebayes.snv)
-rr.platypus.snv <- rowRanges(platypus.snv)
-
-inboth <- rr.freebayes.snv %over% rr.platypus.snv
-sum(inboth)
-sum(inboth) / length(freebayes.snv)
-
-inboth2 <- rr.platypus.snv %over% rr.freebayes.snv
-sum(inboth2)
-sum(inboth2) / length(platypus.snv)
-
-freebayes.only <- !rr.freebayes.snv %over% rr.platypus.snv
-sum(freebayes.only)
-
-platypus.only <- !rr.platypus.snv %over% rr.freebayes.snv
-sum(platypus.only)
-
-boxplot(rr.freebayes.snv$QUAL ~ inboth)
-
-```
-
-We might also expect that the depth observed at each variant is indicative of whether it will be called by both tools. We can test this by extracting the `INFO` from the `.vcf` file. Recall that this part of the file contains metadata that is *variant-specific*. 
-
-```{r eval=FALSE}
-info(freebayes.snv)
-```
-
-```{r echo=FALSE}
-info(freebayes.snv)[,1:4]
-```
-
-
-```{r}
-boxplot(info(freebayes.snv)$DP ~ inboth)
-```
-
-Finally, we define our set of common SNVs
-
-```{r}
-common.snv <- freebayes.snv[rr.freebayes.snv %over% rr.platypus.snv]
-```
-
-
-`VariantAnnotation` also has methods for being able to write an object to a `.vcf` file
-
-```{r}
-writeVcf(common.snv, file="common.snv.vcf")
-```
-
 
 ## Locating variants
 
 With our variants in `GRanges` form, it is possible to interact with the packages we saw yesterday. In particular, we can ask which of our variants are located within coding regions. As we described, transcript database packages are available from some organisms.
 
-In order to make-use of this functionality, we first have to make sure that the names of the chromosomes are compatible with the database.
-
-```{r}
-library(TxDb.Hsapiens.UCSC.hg19.knownGene)
-txdb <- TxDb.Hsapiens.UCSC.hg19.knownGene
-seqlevelsStyle(txdb)
-seqlevelsStyle(common.snv) <- "UCSC"
-common.snv <- keepSeqlevels(common.snv, "chr20")
-```
 
 With a bit of thought, it would be possible to perform overlaps with the exon structure described in the database. However, there is a convenience function `locateVariants` that will do the hard work for us. `CodingVariants` tells the function to look for variants within coding sequences. You can see the help for `locateVariants` (`?locateVariants`) for information on the various options.
 
 
 ```{r warning=FALSE}
-locs <- locateVariants(common.snv, txdb, CodingVariants())
+
+locs <- locateVariants(NA12878.calls.ranges, txdb, CodingVariants())
 ```
 
 ```{r eval=FALSE}
@@ -539,7 +419,7 @@ locs[1:3]
 If we want, we can locate all the variants with respect to the nearest feature (in the case of intergenic variants). 
 
 ```{r warning=FALSE, message=FALSE}
-all.locs <- locateVariants(common.snv, txdb, AllVariants())
+all.locs <- locateVariants(NA12878.calls.ranges, txdb, AllVariants())
 ```
 
 ```{r eval=FALSE}
@@ -570,18 +450,7 @@ locs[1:3]
 
 ******
 
-You may notice that the variants we have observed may affect more than one transcript, so can be listed more than once in the `locs` object. Also, in `locs` we no longer have information about the variant itself (for example the change from reference to alternative base that is observed). 
 
-We might want to subset our set of variants to contain those found in coding regions. We can do this using the `QUERYID` variable, which is an index to the original vcf object. However, we need to take into account the fact that some variants are repeated.
-
-```{r}
-common.coding.snv <- common.snv[unique(locs$QUERYID)]
-writeVcf(common.coding.snv, file="common.coding.snv.vcf")
-common.coding.ranges <- rowRanges(common.coding.snv)
-```
-
-
-Given that we have found variants within coding sequences, we probably want to know whether these variants will have any impact on the amino acids produced. 
 
 ## Predicting Amino acid changes
 
@@ -591,7 +460,7 @@ There is a function, `predictCoding` that will do all the predictions for us. In
 
 ```{r}
 library(BSgenome.Hsapiens.UCSC.hg19)
-coding.pred <- predictCoding(common.coding.snv, txdb, seqSource=Hsapiens)
+coding.pred <- predictCoding(NA12878.calls, txdb, seqSource=Hsapiens)
 ```
 
 ```{r eval=FALSE}
@@ -607,31 +476,6 @@ table(coding.pred $CONSEQUENCE)
 
 ```{r}
 coding.pred[coding.pred$CONSEQUENCE == "nonsense"]
-```
-
-
-
-******
-
-### Exercise
-
-Which exons have more than 2 coding variants?
-
-- verify your answer in IGV
-
-******
-
-```{r echo=FALSE,message=FALSE}
-
-library(TxDb.Hsapiens.UCSC.hg19.knownGene)
-txdb <- TxDb.Hsapiens.UCSC.hg19.knownGene
-exons <- exons(txdb)
-exons.20 <- keepSeqlevels(exons,"chr20")
-perExonSnp <- countOverlaps(exons.20, common.coding.ranges )
-multiSnpExon <- exons.20[perExonSnp > 2]
-multiSnpExon$ENTREZ <- select(txdb, keys=as.character(multiSnpExon$exon_id), keytype = "EXONID", columns="GENEID")[,2]
-multiSnpExon$SYMBOL <- select(org.Hs.eg.db, keys=multiSnpExon$ENTREZ, keytype="ENTREZID", columns="SYMBOL")[,2]
-multiSnpExon
 ```
 
 
@@ -672,81 +516,6 @@ samtools index data/hapmap/NA19240.chr22.bam
 ```
 
 
-## Using the platypus caller
-
-When learning about SNP-calling, it is worth being able to use more than one caller. In fact, it may be beneficial to use multiple-callers and take the consensus of the calls afterwards.
-
-The [platypus](http://www.well.ox.ac.uk/platypus) caller from Oxford is another highly-regarded SNP-caller. For the purposes of this tutorial, is it also relatively easy to run
-
-The command to run `platypus` with the default parameters is as follows:-
-
-```{}
-### N.B tidy-up the path to platypus
-python /home/dunnin01/software/Platypus_0.8.1/Platypus.py callVariants --refFile ../ref_data/human_g1k_v37.fasta --bamFiles data/hapmap/NA12878.chr20.bam --regions 20 -o NA12878.chr20.platypus.vcf 
-
-bgzip -c NA12878.chr20.platypus.vcf  > NA12878.chr20.platypus.vcf.gz
-tabix -p  vcf NA12878.chr20.platypus.vcf.gz
-
-```
-
-
-As before, we can examine the contents of the `.vcf` file produced.
-
-```{r, echo=FALSE,comment=NA}
-cat(system("head NA12878.chr20.platypus.vcf",intern=TRUE),sep="\n")
-```
-
-
-```{r echo=FALSE,comment=NA}
-cat(system("grep -v '##' NA12878.chr20.platypus.vcf | head -n5",intern = TRUE),sep = "\n")
-```
-
-
-
-## <a name=bedtools></a> Intersecting calls: using bedtools
-
-[bedtools](http://bedtools.readthedocs.io/en/latest/) has some useful tools for overlapping various types of genomic intervals
-
-We will use bedtools to refine our calls to a consensus set (i.e agreed by both callers) and present in exonic regions
-
-```{}
-bedtools intersect -header -a NA12878.chr20.freebayes.vcf -b NA12878.chr20.platypus.vcf > NA12878.chr20.consensus.vcf
-```
-
-******
-
-### Exercise
-
-- The -v option to intersect selects variants that are present in one file but not the other
-- Create a vcf file contains calls made by freebayes, but not playtpus
-- Create a vcf file contains calls made by platypus, but not freebayes
-
-
-******
-
-
-```{r echo=FALSE}
-if(!file.exists("exons.chr20.bed")){
-  library(TxDb.Hsapiens.UCSC.hg19.knownGene)
-  library(rtracklayer)
-  library(org.Hs.eg.db)
-  
-  tx <- TxDb.Hsapiens.UCSC.hg19.knownGene
-  exons <- exonsBy(tx, "gene")
-  exons.20 <- keepSeqlevels(exons, "chr20")
-  exons.20 <- unlist(exons.20)
-  names(exons.20) <- select(org.Hs.eg.db, keys=names(exons.20), keytype = "ENTREZID",columns="SYMBOL")[,2]
-  seqlevelsStyle(exons.20) <- "Ensembl"
-  export(exons.20,con="exons.chr20.bed")
-}
-```
-
-Selecting exonic calls only.....
-
-```{}
-bedtools intersect -header -a NA12878.chr20.consensus.vcf -b exons.chr20.bed > NA12878.chr20.exonic.consensus.vcf
-```
-
 
 
 # References
@@ -755,3 +524,5 @@ bedtools intersect -header -a NA12878.chr20.consensus.vcf -b exons.chr20.bed > N
 - [freebayes tutorial 2](https://libraries.io/github/benjaypunto/freebayes)
 - [vcf files tutorial](https://faculty.washington.edu/browning/beagle/intro-to-vcf.html)
 - [bedtools tutorial](http://quinlanlab.org/tutorials/bedtools/bedtools.html)
+
+
