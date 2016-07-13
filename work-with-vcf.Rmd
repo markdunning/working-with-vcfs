@@ -26,7 +26,7 @@ We will use the [freebayes](https://github.com/ekg/freebayes#readme) genotype ca
 `freebayes` is a command-line tool that you will need to run from the terminal. As with all command-line tools, we first need to make sure that we are located in the correct directory. Remember that we can *change directory* using the unix command `cd`.
 
 ```{}
-cd ~/Course_Materials/Day2/
+cd ~/home/participant/Course_Materials/Day2/
 ```
 
 `freebayes` has already been installed for you on your desktop machine (or in the *docker* image, if you are using that). However, we can make sure that `freebayes` is available by typing `freebayes` at the terminal. This will give a basic description, a version number, and information about how to cite the package (very important if you end-up using the tool to generate results for your paper). Adding the *parameter* `-h` will display more-detailed help about the tool and some examples of how to use it.
@@ -53,12 +53,12 @@ What we need to do is *direct the output* to a file. We can call the output file
 Although it is not mandatory, we give the output file the extension `.vcf`. The `.vcf` format is a commonly-adopted standard for variant calls, which we will look into detail now.
 
 ```{}
-freebayes -f ../ref_data/human_g1k_v37.fasta data/hapmap/NA12878.chr20.bam > NA12878.chr20.freebayes.vcf
+freebayes -f ../ref_data/human_g1k_v37.fasta ../data/hapmap/NA12878.chr20.bam > NA12878.chr20.freebayes.vcf
 ```
 
 ## Understanding the vcf format
 
-The vcf format was initially developed by the [1000 Genomes Project](http://www.1000genomes.org/wiki/Analysis/vcf4.0), and ownership has been subsequently transferred to [Global Alliance for Genomics and Health Data Working group file format team](http://ga4gh.org/#/fileformats-team).
+The vcf format was initially developed by the [1000 Genomes Project](http://www.1000genomes.org/wiki/Analysis/vcf4.0), and ownership has been subsequently transferred to [Global Alliance for Genomics and Health Data Working group file format team](http://ga4gh.org/#/fileformats-team). The format can be used to represent information about all kinds of genomic variation. In this session we will just consider SNVs.
 
 We don't require any specialised software to look at the contents of a vcf file. They *can* be opened in a bog-standard text editor. However, there are several tools that will make our lives easier! For now, navigate to the folder and right-click on `NA12878.chr20.freebayes.vcf`. Select the option to open with `gedit` (a common text editor for Ubuntu).
 
@@ -90,9 +90,9 @@ cat(system("grep -v '##' NA12878.chr20.freebayes.vcf | head -n5",intern = TRUE),
 ```
 
 
-The first seven columns should look consistent across different genotype callers. In this exercise we have not annotated against known variants, or applied any filtering, so the `ID` and `FILTER` columns are blank. In some `.vcf` files these might be populated with dbSNP IDs or flags such as `PASS` / `FAIL`.
+The first seven columns should look consistent across different genotype callers. In this exercise we have not annotated against known variants, or applied any filtering, so the `ID` and `FILTER` columns are blank. In some `.vcf` files these columns might be populated with dbSNP IDs or flags such as `PASS` / `FAIL` respectively.
 
-The contents of the `INFO` and `FORMAT` columns will depend on what variant caller has been used. The `INFO` column contains metrics and other information related to each variant call as a set of `KEY` pairs. Each pair is separated by a `;` character. 
+The contents of the `INFO` and `FORMAT` columns will depend on what variant caller has been used. The `INFO` column contains metrics and other information related to ***each variant call*** as a set of `KEY;VALUE` pairs. Each pair is separated by a `;` character. 
 
 The `INFO` for the first variant reads as:-
 
@@ -134,7 +134,7 @@ The final column in the file describes the calls for the sample `NA12878`, which
 
 (`0/1:11:11,5:6:245:5:188:-13.9693,0,-19.1141`). 
 
-These are values separated by a `:` character and they are interpreted in the same order as dictated by the `FORMAT` column. 
+These are values separated by a `:` character and they are interpreted in the same order as dictated by the `FORMAT` column which is `GT:DP:DPR:RO:QR:AO:QA:GL`
 
 ```{r echo=FALSE}
 gt <- "0/1:11:11,5:6:245:5:188:-13.9693,0,-19.1141"
@@ -148,7 +148,7 @@ knitr::kable(df)
 ```
 
 
-So for this particular variant, in the sample `NA12878` there is a genotype of `0\1` (heterozygous) and a depth of 11.
+So for this particular variant, in the sample `NA12878` there is a genotype of `0\1` (heterozygous) and a depth of 11 etc.
 
 To understand the vcf format better, we can use another mode of operation of `freebayes` which is to call genotypes on multiple samples simultaneously. We can also specify an exact region of the genome to call genotypes to speed-up the processing.
 
@@ -157,11 +157,13 @@ freebayes -f ../ref_data/human_g1k_v37.fasta --region 20:500000-800000 data/hapm
 
 ```
 
-```{r echo=FALSE}
+As before, we can look at the first five calls.
+
+```{r echo=FALSE,comment=NA}
 cat(system("grep -v '##' combined.chr20.subset.freebayes.vcf | head -n5",intern = TRUE),sep = "\n")
 ```
 
-
+You should notice that we now have columns `NA12878`, `NA12873` and `NA12874` as we have called variants in three samples. 
 
 One easy way of being able to visualise the calls is to use the IGV browser. Before we do this however, we can do some extra processing to make it easier to process the files. This series of commands will compress and index the vcf files (similar to how bam files are indexed to produce a `.bai` file). IGV would probably cope fine with reading such relatively-small files, but it is good to get into the habit of processing our files in this manner.
 
@@ -177,78 +179,83 @@ tabix -p vcf NA12878.chr20.freebayes.vcf.gz
 
 After running these commands, you should see that the files `combined.chr20.subset.freebayes.vcf.gz`, `combined.chr20.subset.freebayes.vcf.gz.tbi`, `NA12878.chr20.freebayes.vcf.gz` and `NA12878.chr20.freebayes.vcf.gz.tbi` have been created in your working directory.
 
+These files can be viewing in IGV and as usual we can zoom-in and scroll along the genome. Each `.vcf` introduces two tracks into the IGV data panel; the first gives information about the variant, and the second is for sample-specific information.
+
 ******
 
 ### Exercise
 
 - Load IGV
 - Select the files `NA12878.chr20.freebayes.vcf.gz` and `combined.chr20.subset.freebayes.vcf.gz` from the `File -> Open` menu
-- Navigate to `chr20:60000-70000`
+- Navigate to `chr20:500,900-505,630`
 - Verify that the same information from the `.vcf` is shown in IGV
-- What do the difference colours correspond to?
+- What do the light and dark blue rectangles in the sample-specific tracks refer to?
 - What SNPs are shared between the different samples?
     + are any unique to a particular sample?
+
     
 ******
 
-To dig-into these files further, we will use tools within Bioconductor. Our goal will be to find calls that are in common between the two different calling methods, and what SNPs occur within coding regions. For completeness, we note that other command-line tools can be used to perform these operations (the [bedtools](http://bedtools.readthedocs.io/en/latest/) suite for example). However, we should be reasonably comfortable with R by now and the package we use interacts nicely with the `GenomicRanges` concepts we discussed yesterday.
+To dig-into these files further, we will use tools within Bioconductor. Our goal will be to find calls that are in common between different samples, and what SNPs occur within coding regions. For completeness, we note that other command-line tools can be used to perform these operations (the [bedtools](http://bedtools.readthedocs.io/en/latest/) suite for example). However, we should be reasonably comfortable with R by now and the package we use interacts nicely with the `GenomicRanges` concepts we discussed yesterday.
 
 ## Importing into Bioconductor
 
 ### Multi-sample example
 
-The `VariantAnnotation` package allows `.vcf` files to be imported. The `readVcf` function can be used and requires the file of a vcf file. You also need to specify a genome name.
+The `VariantAnnotation` package allows `.vcf` files to be imported. The `readVcf` function can be used and requires the file of a vcf file. You also need to specify a genome name. As we have seen already with other Bioconductor objects, typing the name of the object will print a summary to the screen. In the case of a "`CollapsedVCF`" object this is very detailed
 
 ```{r message=FALSE}
 library(VariantAnnotation)
-hapmap.vcf <- readVcf("combined.chr20.subset.freebayes.vcf","hg19")
+hapmap.calls <- readVcf("combined.chr20.subset.freebayes.vcf","hg19")
 
 ```
 
-As we have seen already with other Bioconductor objects, typing the name of the object will print a summary to the screen. In the case of a "`CollapsedVCF`" object this is very detailed
-```{r}
-hapmap.vcf
+
+```{r eval=FALSE}
+hapmap.calls
 ```
 
 The "header" information can be extracted using `header`. This will contain the definitions of all the per-genotype (`INFO`) and per-sample information stored in the file
 
 ```{r eval=FALSE}
-header(hapmap.vcf)
-info(header(hapmap.vcf))
-geno(header(hapmap.vcf))
+header(hapmap.calls)
+info(header(hapmap.calls))
+geno(header(hapmap.calls))
 ```
 
 ```{r echo=FALSE}
-info(header(hapmap.vcf))[1:3,]
-geno(header(hapmap.vcf))[1:3,]
+info(header(hapmap.calls))[1:3,]
+geno(header(hapmap.calls))[1:3,]
 ```
 
 ## `INFO`
 
-As described above, the `INFO` column in a `.vcf` file gives per-variant metadata as a series of key-value pairs. We can interrogate these data using the `info` function, which returns a data-frame-like object. The name ofe each row is derived from the 
+As described above, the `INFO` column in a `.vcf` file gives per-variant metadata as a series of key-value pairs. We can interrogate these data using the `info` function, which returns a data-frame-like object. Consequently, we can use the `$` operator to select a particular column of interest.
+
+The name of each row is derived from the genomic location and base-change for each variant. There are too many columns to go through in detail, so we will just describe a few that are likely to be common to different callers.
 
 ```{r eval=FALSE}
-info(hapmap.vcf)
+info(hapmap.calls)
 ```
 
 ```{r echo=FALSE}
-info(hapmap.vcf)[1:3,1:5]
+info(hapmap.calls)[1:3,1:5]
 ```
 
-`NS` represents the number of samples with data. We would expect this to be 3 in all cases. However, as we are dealing with low-coverage data there are some sites data could not be observed for all samples
+`NS` represents the number of samples with data. We would expect this to be 3 in all cases. However, as we are dealing with low-coverage data there are some sites where data could not be observed for all samples.
 
 ```{r}
-summary(info(hapmap.vcf)$NS)
+summary(info(hapmap.calls)$NS)
 ```
 
 ```{r eval=FALSE}
-infoMat <- info(hapmap.vcf)
-infoMat[info(hapmap.vcf)$NS==1,]
+infoMat <- info(hapmap.calls)
+infoMat[info(hapmap.calls)$NS==1,]
 ```
 
 ```{r echo=FALSE}
-infoMat <- info(hapmap.vcf)
-infoMat[info(hapmap.vcf)$NS==1,1:5]
+infoMat <- info(hapmap.calls)
+infoMat[info(hapmap.calls)$NS==1,1:5]
 ```
 
 `DP` gives the depth observed at each position, which is given to us in the form of a vector. By looking at the distribtion of the depths, we see some variants with extremely low coverage. Later-on, we will see how we can develop filters to remove unreliable calls from our dataset. Variants with low depth would seem to be a good candidate for exclusion.
@@ -260,13 +267,15 @@ table(infoMat$DP)
 
 The columns we have looked at, `DP` and `NS` have both returned vectors when we extract them from the data frame. However, this is not the case for all columns in the data frame.
 
-The variable `TYPE` indicates whether each variant is an snp, insertion, deletion or something else. However, the format of this column is somewhat different.
+In order for the format to be as flexible as possible, we have to allow for the possibility that more than one type of variant is observed at a particular location. Therefore, some of the columns are given as a "`list`" which allows us to have multiple entries for a particular column in some cases.
+
+For example, the `TYPE` column simply denotes what type of variant is observed at each position:- snp, insertion, deletion or something else. 
 
 ```{r}
 infoMat$TYPE
 ```
 
-Most of the positions will be annotated as `snp`, however we have to allow for the possibility that more than one type of variant is observed at a particular location. 
+As this column is a `list` we have to use a function such as `lapply` to process each entry. For example, we can get the different types of variants found at each position by using `length` in conjunction with `lapply`:-
 
 ```{r}
 numVars <- unlist(lapply(infoMat$TYPE,length))
@@ -274,7 +283,7 @@ table(numVars)
 ```
 
 
-We can find a few records where more than one type of variant is found.
+We can find a few records where more than one type of variant is found. You should see that some of the columns are broken down into different values for each of the variants observed.
 
 ```{r eval=FALSE}
 infoMat[numVars>1,]
@@ -284,40 +293,43 @@ infoMat[numVars>1,]
 infoMat[numVars>1,][1:3,1:5]
 ```
 
+```{r}
+infoMat[numVars>1,][1,]
+```
+
 
 ## Accessing genotypes
 
-The called genotypes can be accessed using the `geno` function. Recall that in the `.vcf` file, we have one column of genotype information for each sample, with each column consisting of `key:value` pairs. Using `geno` we can access all the values for a particular keys and be able to compare across samples. Usually each entry is `0/0` for a homozygous reference, `0/1` for a heterozygous call and `1/1` for a homozyous alternate allele.
+The called genotypes can be accessed using the `geno` function. Recall that in the `.vcf` file, we have one column of genotype information for each sample, with each column consisting of `key:value` pairs. Using `geno` we can access all the values for a particular keys and be able to compare across samples. For example, the called genotypes are accessed as follows:-
 
 ```{r}
-geno(hapmap.vcf)
-head(geno(hapmap.vcf)$GT)
+geno(hapmap.calls)
+head(geno(hapmap.calls)$GT)
 ```
-
-An entry of `.` indicates a position where no call could be made due to insufficient data. Moreover, we can also find `0/2` and `1/2` in rare cases where a second alternative allele was found. With `table` we can tabulate the calls between one sample and another
+Usually each entry is `0/0` for a homozygous reference, `0/1` for a heterozygous call and `1/1` for a homozyous alternate allele. An entry of `.` indicates a position where no call could be made due to insufficient data. Moreover, we can also find `0/2` and `1/2` in rare cases where a second alternative allele was found. With `table` we can tabulate the calls between one sample and another
 
 ```{r}
-table(geno(hapmap.vcf)$GT[,1])
-table(geno(hapmap.vcf)$GT[,2])
-table(geno(hapmap.vcf)$GT[,1], geno(hapmap.vcf)$GT[,2])
+table(geno(hapmap.calls)$GT[,1])
+table(geno(hapmap.calls)$GT[,2])
+table(geno(hapmap.calls)$GT[,1], geno(hapmap.calls)$GT[,2])
 ```
 
 A common way to visualise these overlaps is to use a *venn diagram*. We can generate the venn diagram using the `limma` package (a popular package for the analysis of microarray data). First of all we need to create a data frame containing `0`s or `1` (or equivalenly `TRUE` or `FALSE`) depending on whether a variant was called in each sample. We can do this by creating three separate vectors and combining into a data frame. 
 
 ```{r}
-called.NA12878 <- geno(hapmap.vcf)$GT[,1] != "0/0"
-called.NA12873 <- geno(hapmap.vcf)$GT[,2] != "0/0"
-called.NA12874 <- geno(hapmap.vcf)$GT[,3] != "0/0"
+called.NA12878 <- geno(hapmap.calls)$GT[,1] != "0/0"
+called.NA12873 <- geno(hapmap.calls)$GT[,2] != "0/0"
+called.NA12874 <- geno(hapmap.calls)$GT[,3] != "0/0"
 
 called <- data.frame(called.NA12878, called.NA12873,called.NA12874)
 head(called)
-head(geno(hapmap.vcf)$GT)
+head(geno(hapmap.calls)$GT)
 ```
 
 *N.B* a more sophisticated method would to use an `apply` statement
 
 ```{r}
-called2 <- apply(geno(hapmap.vcf)$GT, 2,function(x) x !="0/0")
+called2 <- apply(geno(hapmap.calls)$GT, 2,function(x) x !="0/0")
 ```
 
 The `vennDiagram` function can now be used on the data frame we just created.
@@ -326,16 +338,17 @@ The `vennDiagram` function can now be used on the data frame we just created.
 limma::vennDiagram(called)
 ```
 
+Suppose we wanted to know about positions that were called homozygous for the alternate allele in all samples. We can first create a *logical vector* that is `TRUE` only if all three columns of the `GT` data frame are `1/1`. With this vector we can create a new vcf object in `VariantAnnotation`
 
 ```{r}
-all.hom <- which(geno(hapmap.vcf)$GT[,1]=="1/1" & geno(hapmap.vcf)$GT[,2]=="1/1" & geno(hapmap.vcf)$GT[,3]=="1/1")
-geno(hapmap.vcf)$GT[all.hom,]
-hapmap.vcf.homs <- hapmap.vcf[all.hom]
+all.hom <- which(geno(hapmap.calls)$GT[,1]=="1/1" & geno(hapmap.calls)$GT[,2]=="1/1" & geno(hapmap.calls)$GT[,3]=="1/1")
+hapmap.calls.homs <- hapmap.calls[all.hom]
 ```
 
+`VariantAnnotation` also has the capability to write an object as a `.vcf` file for further inspection.
 
 ```{r}
-writeVcf(hapmap.vcf.homs, filename = "hapmap.common.hom.vcf")
+writeVcf(hapmap.calls.homs, filename = "hapmap.common.hom.vcf")
 ```
 
 
@@ -344,10 +357,18 @@ writeVcf(hapmap.vcf.homs, filename = "hapmap.common.hom.vcf")
 ### Exercise
 
 Find all the positions that were called as heterozyous in all samples
-  - Write a vcf file
+
+  - Create a new vcf object; say `hapmap.calls.hets`
+  - Now remove all variants with a depth less than 20
+  - Write the remaining variants as a vcf file
 
 ```{r echo=FALSE}
+all.het <- which(geno(hapmap.calls)$GT[,1]=="0/1" & geno(hapmap.calls)$GT[,2]=="0/1" & geno(hapmap.calls)$GT[,3]=="0/1")
+hapmap.calls.hets <- hapmap.calls[all.het]
 
+depfilt <- which(info(hapmap.calls.hets)$DP>20)
+hapmap.calls.hets.filt <- hapmap.calls.hets[depfilt]
+writeVcf(hapmap.calls.hets.filt, filename = "hapmap.common.hets.filt.vcf")
 ```
 
 
@@ -355,24 +376,36 @@ Find all the positions that were called as heterozyous in all samples
 
 ### Case 2: Variant locations
 
+In this next section we will see how we can overlap the calls we have made with other genomic features, such as the pre-built gene models that we saw yesterday.
+
+For this section, we are going to use all calls made on chromosome 20 for a single sample; `NA12878`. As we discovered yesterday, it can be problematic trying to perform overlaps when the chromosome naming convention is not consistent between files. Consequently, we are going to rename our variants to the `UCSC` style from the start.
+
 ```{r}
 NA12878.calls <- readVcf("NA12878.chr20.freebayes.vcf","hg19")
 seqlevelsStyle(NA12878.calls) <- "UCSC"
 NA12878.calls <- keepSeqlevels(NA12878.calls, "chr20")
 ```
 
-The `rowRanges` function will retrieve the positions of our variants as a familiar `GRanges` object.
+The `rowRanges` function will retrieve the positions of our variants as a familiar `GRanges` object. Along with the usual positional information, we also get extra "metadata" (`mcols`) about the base-change, a quality-score from `freebayes` and a filter (which has not been applied in this case).
 
 ```{r}
 NA12878.calls.ranges <- rowRanges(NA12878.calls)
+
+```
+
+```{r eval=FALSE}
+NA12878.calls.ranges
+```
+
+
+```{r echo=FALSE}
+NA12878.calls.ranges[1:3]
 ```
 
 
 ## Overlapping with genes
 
-We saw yesterday how to retrieve the coordinates for all genes in a given organism and genome-build
-
-In order to make-use of this functionality, we first have to make sure that the names of the chromosomes are compatible with the database.
+We saw yesterday how to retrieve the coordinates for all genes in a given organism and genome-build. For this example, we can again use the package `TxDb.Hsapiens.UCSC.hg19.knownGene`
 
 ```{r message=FALSE}
 library(TxDb.Hsapiens.UCSC.hg19.knownGene)
@@ -384,7 +417,8 @@ txdb <- TxDb.Hsapiens.UCSC.hg19.knownGene
 
 ### Exercise
 
-Find all variants that have been called within the gene "PRND"
+Find all `NA12878` variants that have been called within the gene "PRND"
+
 - this gene has an Entrez ID of "23627"
 - HINT: recall the `exonsBy` function from yesterday....
 - check your answer in IGV
@@ -395,16 +429,13 @@ Find all variants that have been called within the gene "PRND"
 
 ******
 
-## Locating variants
+## More-automated location of variants
 
-With our variants in `GRanges` form, it is possible to interact with the packages we saw yesterday. In particular, we can ask which of our variants are located within coding regions. As we described, transcript database packages are available from some organisms.
+With a bit of scripting it would be possible to *loop* through a series of gene locations and get locate which gene each variant is located within. However, there is a convenience function `locateVariants` that will do the hard work for us. It has flexibility to allow us to search for variants within coding, intergenic or other regions. For example, adding the `CodingVariants()`argument tells the function to look for variants within coding sequences. You can see the help for `locateVariants` (`?locateVariants`) for information on the various options.
 
-
-With a bit of thought, it would be possible to perform overlaps with the exon structure described in the database. However, there is a convenience function `locateVariants` that will do the hard work for us. `CodingVariants` tells the function to look for variants within coding sequences. You can see the help for `locateVariants` (`?locateVariants`) for information on the various options.
-
+As this function runs you should see some message sbout `select()' returned many:1 mapping between keys and columns`. This is because some variants might be located within multiple transcripts for the same gene.
 
 ```{r warning=FALSE}
-
 locs <- locateVariants(NA12878.calls.ranges, txdb, CodingVariants())
 ```
 
@@ -416,7 +447,19 @@ locs
 locs[1:3]
 ```
 
-If we want, we can locate all the variants with respect to the nearest feature (in the case of intergenic variants). 
+This annotation step has put *Entrez IDs*
+
+```{r}
+library(org.Hs.eg.db)
+symbol <- select(org.Hs.eg.db, keys=mcols(locs)$GENEID, keytype = "ENTREZID", columns="SYMBOL")
+head(symbol)
+mcols(locs)$SYMBOL <- symbol[,2]
+locs
+
+```
+
+
+If we want, we can locate all the variants with respect to the nearest feature (in the case of intergenic variants).  
 
 ```{r warning=FALSE, message=FALSE}
 all.locs <- locateVariants(NA12878.calls.ranges, txdb, AllVariants())
@@ -433,23 +476,58 @@ table(all.locs$LOCATION)
 ```
 
 
+## Producing an output table
+
+To recap, we have information in the following tables
+
+- `NA12878.calls.ranges` which has locations, details of the base-changes and a quality-score for each variant
+- A table of variants which occur in the coding region of genes; `locs`
+- meta information about the quality of each call; `info(NA12878.calls)`
+
+Our task now is to combine these into one data frame, which we can start by converting each component into a data frame. We don't need all the columns from the `NA12878.calls.ranges` object as we already have the genomic location in the `locs.df` data frame. Consequently we can extract the meta data only using the function `meta`.
+
+```{r}
+locs.df <- as.data.frame(locs)
+dim(locs.df)
+meta <- mcols(NA12878.calls.ranges)
+head(meta)
+dim(meta)
+info.df <- info(NA12878.calls)
+dim(info.df)
+```
+
+As not all variants are inside coding regions, the number of rows in `locs` is not the same as the total number of variants. However, the column `locs$QUERYID` gives an index that we can use to look-up the relevant rows in the complete set of calls. Below we show how the extract data fror the first five coding variants.
+
+```{r}
+locs.df[1:5,]
+locs.df$QUERYID[1:5]
+NA12878.calls.ranges[locs.df$QUERYID[1:5],]
+```
+
+
 ******
 
 ### Exercise
 
-Annotate the coding variants using the `org.Hs.eg.db` package that we saw yesterday
+Construct a data frame containing:-
 
-  - Add the gene symbol to give the following output
+- The `locs.df` data frame with details of all the coding variants
+- The metadata from the ranges object in the `meta` data frame
+- `INFO` columns `DP`, `NS`, `RO` and `AO` from `info.df`
+    + or any other columns you think might be of interest
+- Write this data frame to a tab-delimited text file
 
-```{r echo=FALSE,message=FALSE}
-library(org.Hs.eg.db)
-symb <- select(org.Hs.eg.db, keys = locs$GENEID, keytype = "ENTREZID",columns="SYMBOL")
-locs$SYMBOL <- symb[,2]
-locs[1:3]
+```{r echo=FALSE}
+
+infoMat <- info(NA12878.calls)
+query.ids <- locs.df$QUERYID
+df <- data.frame(locs.df, meta[query.ids,], infoMat[query.ids,c("DP","NS", "RO","AO")])
+head(df)
+write.table(df, file="NA12878.chr20.coding.annotated.txt",sep="\t")
 ```
 
-******
 
+******
 
 
 ## Predicting Amino acid changes
@@ -473,13 +551,21 @@ coding.pred [1:3]
 table(coding.pred $CONSEQUENCE)
 ```
 
+Probably the most interesting variants that cause a change in protein; which are called ***nonsynonymous***, or those that cause a *frameshift* or *nonsense* mutation
 
 ```{r}
 coding.pred[coding.pred$CONSEQUENCE == "nonsense"]
+coding.pred[coding.pred$CONSEQUENCE == "frameshift"]
 ```
 
 
+## Summary
 
+- We have used a common genotype caller `freebayes` to call SNVs from a set of healthy individuals
+    + there are many paramters that can be tweaked
+- The `.vcf` format contains a rich description of the called variants
+- Bioconducor tools can be used to import and parse vcf files
+- We can use `GenomicRanges` to overlap our calls with other genomic features of interest
 
 
 # <a name="appendix"></a> Appendix
