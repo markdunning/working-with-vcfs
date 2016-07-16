@@ -1,7 +1,7 @@
 ---
 title: "Working with VCF files"
 author: "Mark Dunning"
-date: "24 May 2016"
+date: '`r format(Sys.time(), "Last modified: %d %b %Y")`'
 output: html_document
 ---
 
@@ -26,7 +26,7 @@ We will use the [freebayes](https://github.com/ekg/freebayes#readme) genotype ca
 `freebayes` is a command-line tool that you will need to run from the terminal. As with all command-line tools, we first need to make sure that we are located in the correct directory. Remember that we can *change directory* using the unix command `cd`.
 
 ```{}
-cd ~/home/participant/Course_Materials/Day2/
+cd /home/participant/Course_Materials/Day2/
 ```
 
 `freebayes` has already been installed for you on your desktop machine (or in the *docker* image, if you are using that). However, we can make sure that `freebayes` is available by typing `freebayes` at the terminal. This will give a basic description, a version number, and information about how to cite the package (very important if you end-up using the tool to generate results for your paper). Adding the *parameter* `-h` will display more-detailed help about the tool and some examples of how to use it.
@@ -36,14 +36,16 @@ freebayes
 freebayes -h
 ```
 
-We are going to use `freebayes` to call SNVs on some *hapmap* samples. In order to make the SNV-calling run in a reasonable time, we are only considering reads aligned to chromosome 20 in this analysis. In the [Appendix](#appendix) you will see the commands used to create the bam files.
+We are going to use `freebayes` to call SNVs on some *1000 genomes* samples. In order to make the SNV-calling run in a reasonable time, we are only considering reads aligned to chromosome 20 in this analysis. In the [Appendix](#appendix) you will see the commands used to create the bam files.
 
 The minimal requirements to run `freebayes` (and why it is appealing for this practical!) are a reference genome and a `.bam` file. The `-f` parameter is used to specify the location of a reference genome in `.fasta` format. 
+
+The reference file is in the folder `/home/participant/Course_Materials/ref_data`. However, rather than having the write the full *path* to the file, we can write the path relative to our current working directory (which is `/home/participant/Course_Materials/Day2`). When specifying the location of the files the `../` means to go one directory "*up*" from the current working directory. 
 
 ***Please don't run this next command*** 
 
 ```{}
-freebayes -f ../ref_data/human_g1k_v37.fasta data/hapmap/NA12878.chr20.bam
+freebayes -f ../ref_data/Homo_sapiens_assembly19.fasta ../data/hapmap/NA12878.chr20.bam
 ```
 
 If you did run that command, you would quickly see that the screen gets filled with lots of text. These are the calls that `freebayes` is making being printed to the screen (the standard output for some unix commands). If you find yourself in this situation, a swift press of `CTRL + C` should stop the tool from running.
@@ -53,7 +55,7 @@ What we need to do is *direct the output* to a file. We can call the output file
 Although it is not mandatory, we give the output file the extension `.vcf`. The `.vcf` format is a commonly-adopted standard for variant calls, which we will look into detail now.
 
 ```{}
-freebayes -f ../ref_data/human_g1k_v37.fasta ../data/hapmap/NA12878.chr20.bam > NA12878.chr20.freebayes.vcf
+freebayes -f ../ref_data/Homo_sapiens_assembly19.fasta ../data/hapmap/NA12878.chr20.bam > NA12878.chr20.freebayes.vcf
 ```
 
 ## Understanding the vcf format
@@ -153,7 +155,7 @@ So for this particular variant, in the sample `NA12878` there is a genotype of `
 To understand the vcf format better, we can use another mode of operation of `freebayes` which is to call genotypes on multiple samples simultaneously. We can also specify an exact region of the genome to call genotypes to speed-up the processing.
 
 ```{}
-freebayes -f ../ref_data/human_g1k_v37.fasta --region 20:500000-800000 data/hapmap/NA12878.chr20.bam data/hapmap/NA12873.chr20.bam data/hapmap/NA12874.chr20.bam > combined.chr20.subset.freebayes.vcf
+freebayes -f ../ref_data/Homo_sapiens_assembly19.fasta --region 20:500000-800000 ../data/hapmap/NA12878.chr20.bam ../data/hapmap/NA12873.chr20.bam ../data/hapmap/NA12874.chr20.bam > combined.chr20.subset.freebayes.vcf
 
 ```
 
@@ -199,6 +201,22 @@ These files can be viewing in IGV and as usual we can zoom-in and scroll along t
 To dig-into these files further, we will use tools within Bioconductor. Our goal will be to find calls that are in common between different samples, and what SNPs occur within coding regions. For completeness, we note that other command-line tools can be used to perform these operations (the [bedtools](http://bedtools.readthedocs.io/en/latest/) suite for example). However, we should be reasonably comfortable with R by now and the package we use interacts nicely with the `GenomicRanges` concepts we discussed yesterday.
 
 ## Importing into Bioconductor
+
+### Working directory
+
+***Session*** -> ***Set Working Directory*** -> ***Choose Directory***
+
+```{}
+/home/participant/Course_Materials/Day2/
+```
+
+### Template
+
+```{}
+/home/participant/Course_Materials/Day2/Session1-template.Rmd
+```
+
+
 
 ### Multi-sample example
 
@@ -353,6 +371,8 @@ writeVcf(hapmap.calls.homs, filename = "hapmap.common.hom.vcf")
 
 
 ******
+******
+******
 
 ### Exercise
 
@@ -373,10 +393,12 @@ writeVcf(hapmap.calls.hets.filt, filename = "hapmap.common.hets.filt.vcf")
 
 
 ******
+******
+******
 
 ### Case 2: Variant locations
 
-In this next section we will see how we can overlap the calls we have made with other genomic features, such as the pre-built gene models that we saw yesterday.
+In this  section we will see how we can overlap the calls we have made with other genomic features, such as the pre-built gene models that we saw yesterday.
 
 For this section, we are going to use all calls made on chromosome 20 for a single sample; `NA12878`. As we discovered yesterday, it can be problematic trying to perform overlaps when the chromosome naming convention is not consistent between files. Consequently, we are going to rename our variants to the `UCSC` style from the start.
 
@@ -414,6 +436,8 @@ txdb <- TxDb.Hsapiens.UCSC.hg19.knownGene
 ```
 
 ******
+******
+******
 
 ### Exercise
 
@@ -428,10 +452,12 @@ Find all `NA12878` variants that have been called within the gene "PRND"
 ```
 
 ******
+******
+******
 
 ## More-automated location of variants
 
-With a bit of scripting it would be possible to *loop* through a series of gene locations and get locate which gene each variant is located within. However, there is a convenience function `locateVariants` that will do the hard work for us. It has flexibility to allow us to search for variants within coding, intergenic or other regions. For example, adding the `CodingVariants()`argument tells the function to look for variants within coding sequences. You can see the help for `locateVariants` (`?locateVariants`) for information on the various options.
+With a bit of scripting it would be possible to *loop* through a series of gene locations and identify which gene each variant is located within. However, there is a convenience function `locateVariants` that will do the hard work for us. It has flexibility to allow us to search for variants within coding, intergenic or other regions. For example, adding the `CodingVariants()`argument tells the function to look for variants within coding sequences. You can see the help for `locateVariants` (`?locateVariants`) for information on the various options.
 
 As this function runs you should see some message sbout `select()' returned many:1 mapping between keys and columns`. This is because some variants might be located within multiple transcripts for the same gene.
 
@@ -447,7 +473,7 @@ locs
 locs[1:3]
 ```
 
-This annotation step has put *Entrez IDs*
+This annotation step has put *Entrez IDs* into the `locs` object, which is great if we want overlap with transcript databases. However, we are more likely to be familiar with gene symbols. We can do a look-up using the `org.Hs.eg.db` package that we saw yesterday and add the identifiers we retrieve to the table.
 
 ```{r}
 library(org.Hs.eg.db)
@@ -455,7 +481,6 @@ symbol <- select(org.Hs.eg.db, keys=mcols(locs)$GENEID, keytype = "ENTREZID", co
 head(symbol)
 mcols(locs)$SYMBOL <- symbol[,2]
 locs
-
 ```
 
 
@@ -506,6 +531,8 @@ NA12878.calls.ranges[locs.df$QUERYID[1:5],]
 
 
 ******
+******
+******
 
 ### Exercise
 
@@ -526,9 +553,9 @@ head(df)
 write.table(df, file="NA12878.chr20.coding.annotated.txt",sep="\t")
 ```
 
-
 ******
-
+******
+******
 
 ## Predicting Amino acid changes
 
@@ -577,8 +604,8 @@ Commands used to generate bam files for genotype calling
 - First, get a copy of the reference genome from the 1000 genomes FTP site
 
 ```{}
-wget ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/reference/human_g1k_v37.fasta.gz -P ../ref_data/
-gunzip ../ref_data/human_g1k_v37.fasta.gz
+wget ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/reference/Homo_sapiens_assembly19.fasta.gz -P ../ref_data/
+gunzip ../ref_data/Homo_sapiens_assembly19.fasta.gz
 
 ```
 
