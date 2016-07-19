@@ -262,57 +262,10 @@ info(hapmap.calls)[1:3,1:5]
 
 `NS` represents the number of samples with data. We would expect this to be 3 in all cases. However, as we are dealing with low-coverage data there are some sites where data could not be observed for all samples.
 
-```{r}
-summary(info(hapmap.calls)$NS)
-```
-
-```{r eval=FALSE}
-infoMat <- info(hapmap.calls)
-infoMat[info(hapmap.calls)$NS==1,]
-```
-
-```{r echo=FALSE}
-infoMat <- info(hapmap.calls)
-infoMat[info(hapmap.calls)$NS==1,1:5]
-```
-
 `DP` gives the depth observed at each position, which is given to us in the form of a vector. By looking at the distribtion of the depths, we see some variants with extremely low coverage. Later-on, we will see how we can develop filters to remove unreliable calls from our dataset. Variants with low depth would seem to be a good candidate for exclusion.
 
 ```{r}
-hist(infoMat$DP)
-table(infoMat$DP)
-```
-
-The columns we have looked at, `DP` and `NS` have both returned vectors when we extract them from the data frame. However, this is not the case for all columns in the data frame.
-
-In order for the format to be as flexible as possible, we have to allow for the possibility that more than one type of variant is observed at a particular location. Therefore, some of the columns are given as a "`list`" which allows us to have multiple entries for a particular column in some cases.
-
-For example, the `TYPE` column simply denotes what type of variant is observed at each position:- snp, insertion, deletion or something else. 
-
-```{r}
-infoMat$TYPE
-```
-
-As this column is a `list` we have to use a function such as `lapply` to process each entry. For example, we can get the different types of variants found at each position by using `length` in conjunction with `lapply`:-
-
-```{r}
-numVars <- unlist(lapply(infoMat$TYPE,length))
-table(numVars)
-```
-
-
-We can find a few records where more than one type of variant is found. You should see that some of the columns are broken down into different values for each of the variants observed.
-
-```{r eval=FALSE}
-infoMat[numVars>1,]
-```
-
-```{r echo=FALSE}
-infoMat[numVars>1,][1:3,1:5]
-```
-
-```{r}
-infoMat[numVars>1,][1,]
+hist(info(hapmap.calls)$DP)
 ```
 
 
@@ -332,71 +285,8 @@ table(geno(hapmap.calls)$GT[,2])
 table(geno(hapmap.calls)$GT[,1], geno(hapmap.calls)$GT[,2])
 ```
 
-A common way to visualise these overlaps is to use a *venn diagram*. We can generate the venn diagram using the `limma` package (a popular package for the analysis of microarray data). First of all we need to create a data frame containing `0`s or `1` (or equivalenly `TRUE` or `FALSE`) depending on whether a variant was called in each sample. We can do this by creating three separate vectors and combining into a data frame. 
 
-```{r}
-called.NA12878 <- geno(hapmap.calls)$GT[,1] != "0/0"
-called.NA12873 <- geno(hapmap.calls)$GT[,2] != "0/0"
-called.NA12874 <- geno(hapmap.calls)$GT[,3] != "0/0"
-
-called <- data.frame(called.NA12878, called.NA12873,called.NA12874)
-head(called)
-head(geno(hapmap.calls)$GT)
-```
-
-*N.B* a more sophisticated method would to use an `apply` statement
-
-```{r}
-called2 <- apply(geno(hapmap.calls)$GT, 2,function(x) x !="0/0")
-```
-
-The `vennDiagram` function can now be used on the data frame we just created.
-
-```{r}
-limma::vennDiagram(called)
-```
-
-Suppose we wanted to know about positions that were called homozygous for the alternate allele in all samples. We can first create a *logical vector* that is `TRUE` only if all three columns of the `GT` data frame are `1/1`. With this vector we can create a new vcf object in `VariantAnnotation`
-
-```{r}
-all.hom <- which(geno(hapmap.calls)$GT[,1]=="1/1" & geno(hapmap.calls)$GT[,2]=="1/1" & geno(hapmap.calls)$GT[,3]=="1/1")
-hapmap.calls.homs <- hapmap.calls[all.hom]
-```
-
-`VariantAnnotation` also has the capability to write an object as a `.vcf` file for further inspection.
-
-```{r}
-writeVcf(hapmap.calls.homs, filename = "hapmap.common.hom.vcf")
-```
-
-
-******
-******
-******
-
-### Exercise
-
-Find all the positions that were called as heterozyous in all samples
-
-  - Create a new vcf object; say `hapmap.calls.hets`
-  - Now remove all variants with a depth less than 20
-  - Write the remaining variants as a vcf file
-
-```{r echo=FALSE}
-all.het <- which(geno(hapmap.calls)$GT[,1]=="0/1" & geno(hapmap.calls)$GT[,2]=="0/1" & geno(hapmap.calls)$GT[,3]=="0/1")
-hapmap.calls.hets <- hapmap.calls[all.het]
-
-depfilt <- which(info(hapmap.calls.hets)$DP>20)
-hapmap.calls.hets.filt <- hapmap.calls.hets[depfilt]
-writeVcf(hapmap.calls.hets.filt, filename = "hapmap.common.hets.filt.vcf")
-```
-
-
-******
-******
-******
-
-### Case 2: Variant locations
+## Variant locations
 
 In this  section we will see how we can overlap the calls we have made with other genomic features, such as the pre-built gene models that we saw yesterday.
 
@@ -441,10 +331,10 @@ txdb <- TxDb.Hsapiens.UCSC.hg19.knownGene
 
 ### Exercise
 
-Find all `NA12878` variants that have been called within the gene "PRND"
+Find and count all `NA12878` variants that have been called within the gene "PRND"
 
 - this gene has an Entrez ID of "23627"
-- HINT: recall the `exonsBy` function from yesterday....
+    + recall the `exonsBy` and `%over%`, `countOverlaps` functions from yesterday....
 - check your answer in IGV
 
 ```{r echo=FALSE}
@@ -501,7 +391,46 @@ table(all.locs$LOCATION)
 ```
 
 
-## Producing an output table
+
+## Predicting Amino acid changes
+
+Determining whether a change at a particular base will lead to a different amino acid can be performed using one of the many `BSgenome...` packages in Bioconductor. These packages provide a pre-built database of genome sequence for various organisms. They allow us to query particular regions of the genome and return the results in a `Biostrings`-compatible format. We have already seen that `Biostrings` allows us to perform various computations on DNA sequences; including the ability to translate DNA to RNA. 
+
+There is a function, `predictCoding` that will do all the predictions for us. In order to make use of this function, we need to have loaded a pre-built genome in `Biostrings` format. There are many such packages listed on the bioconductor web page. The one we need is `BSgenome.Hsapiens.UCSC.hg19`
+
+```{r}
+library(BSgenome.Hsapiens.UCSC.hg19)
+coding.pred <- predictCoding(NA12878.calls, txdb, seqSource=Hsapiens)
+```
+
+```{r eval=FALSE}
+coding.pred 
+table(coding.pred $CONSEQUENCE)
+```
+
+```{r echo=FALSE}
+coding.pred [1:3]
+table(coding.pred $CONSEQUENCE)
+```
+
+Probably the most interesting variants that cause a change in protein; which are called ***nonsynonymous***, or those that cause a *frameshift* or *nonsense* mutation
+
+```{r}
+coding.pred[coding.pred$CONSEQUENCE == "nonsense"]
+coding.pred[coding.pred$CONSEQUENCE == "frameshift"]
+```
+
+
+## Summary
+
+- We have used a common genotype caller `freebayes` to call SNVs from a set of healthy individuals
+    + there are many paramters that can be tweaked
+- The `.vcf` format contains a rich description of the called variants
+- Bioconducor tools can be used to import and parse vcf files
+- We can use `GenomicRanges` to overlap our calls with other genomic features of interest
+
+
+## EXTRA:- Producing an output table
 
 To recap, we have information in the following tables
 
@@ -556,44 +485,6 @@ write.table(df, file="NA12878.chr20.coding.annotated.txt",sep="\t")
 ******
 ******
 ******
-
-## Predicting Amino acid changes
-
-Determining whether a change at a particular base will lead to a different amino acid can be performed using one of the many `BSgenome...` packages in Bioconductor. These packages provide a pre-built database of genome sequence for various organisms. They allow us to query particular regions of the genome and return the results in a `Biostrings`-compatible format. We have already seen that `Biostrings` allows us to perform various computations on DNA sequences; including the ability to translate DNA to RNA. 
-
-There is a function, `predictCoding` that will do all the predictions for us. In order to make use of this function, we need to have loaded a pre-built genome in `Biostrings` format. There are many such packages listed on the bioconductor web page. The one we need is `BSgenome.Hsapiens.UCSC.hg19`
-
-```{r}
-library(BSgenome.Hsapiens.UCSC.hg19)
-coding.pred <- predictCoding(NA12878.calls, txdb, seqSource=Hsapiens)
-```
-
-```{r eval=FALSE}
-coding.pred 
-table(coding.pred $CONSEQUENCE)
-```
-
-```{r echo=FALSE}
-coding.pred [1:3]
-table(coding.pred $CONSEQUENCE)
-```
-
-Probably the most interesting variants that cause a change in protein; which are called ***nonsynonymous***, or those that cause a *frameshift* or *nonsense* mutation
-
-```{r}
-coding.pred[coding.pred$CONSEQUENCE == "nonsense"]
-coding.pred[coding.pred$CONSEQUENCE == "frameshift"]
-```
-
-
-## Summary
-
-- We have used a common genotype caller `freebayes` to call SNVs from a set of healthy individuals
-    + there are many paramters that can be tweaked
-- The `.vcf` format contains a rich description of the called variants
-- Bioconducor tools can be used to import and parse vcf files
-- We can use `GenomicRanges` to overlap our calls with other genomic features of interest
-
 
 # <a name="appendix"></a> Appendix
 
