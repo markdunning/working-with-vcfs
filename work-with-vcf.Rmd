@@ -62,10 +62,10 @@ freebayes -f ../ref_data/Homo_sapiens_assembly19.fasta ../data/hapmap/NA12878.ch
 
 The vcf format was initially developed by the [1000 Genomes Project](http://www.1000genomes.org/wiki/Analysis/vcf4.0), and ownership has been subsequently transferred to [Global Alliance for Genomics and Health Data Working group file format team](http://ga4gh.org/#/fileformats-team). The format can be used to represent information about all kinds of genomic variation. In this session we will just consider SNVs.
 
-We don't require any specialised software to look at the contents of a vcf file. They *can* be opened in a bog-standard text editor. However, there are several tools that will make our lives easier! For now, navigate to the folder and right-click on `NA12878.chr20.freebayes.vcf`. Select the option to open with `gedit` (a common text editor for Ubuntu).
+We don't require any specialised software to look at the contents of a vcf file. They *can* be opened in a bog-standard text editor.For now, navigate to the folder and right-click on `NA12878.chr20.freebayes.vcf`. Select the option to open with `gedit` (a common text editor for Ubuntu).
 
 
-In a similar vein to the bam and sam files we saw earlier, the `.vcf` files contains many lines of header information.
+In a similar vein to the `.bam` and `.sam` files we saw earlier, the `.vcf` files contains many lines of header information.
 ```{r echo=FALSE,comment=NA}
 cat(system("head NA12878.chr20.freebayes.vcf",intern=TRUE),sep="\n")
 
@@ -298,11 +298,10 @@ seqlevelsStyle(NA12878.calls) <- "UCSC"
 NA12878.calls <- keepSeqlevels(NA12878.calls, "chr20")
 ```
 
-The `rowRanges` function will retrieve the positions of our variants as a familiar `GRanges` object. Along with the usual positional information, we also get extra "metadata" (`mcols`) about the base-change, a quality-score from `freebayes` and a filter (which has not been applied in this case).
+The `rowRanges` function will retrieve the positions of our variants as a familiar `GRanges` object. Along with the usual positional information, we also get extra "metadata" (`mcols`) about the base-change, a quality-score from `freebayes` and a placeholder for a filter (which has not been applied in this case).
 
 ```{r}
 NA12878.calls.ranges <- rowRanges(NA12878.calls)
-
 ```
 
 ```{r eval=FALSE}
@@ -344,6 +343,18 @@ Find and count all `NA12878` variants that have been called within the gene "PRN
 ******
 ******
 ******
+
+We are not just restricted to overlapping with these pre-defined gene models. If we have a set of generic regions in `.bed` or similar format we can import as a `GRanges` object using the `rtracklayer` package and call the `countOverlaps` and `%over%` functions as usual.
+
+```{r eval=FALSE}
+library(rtracklayer)
+regions <- import("regions.of.interest.bed")
+regions
+NA12878.calls.ranges[NA12878.calls.ranges %over% regions]
+countOverlaps(regions, NA12878.calls.ranges)
+```
+
+
 
 ## More-automated location of variants
 
@@ -391,15 +402,21 @@ table(all.locs$LOCATION)
 ```
 
 
-
 ## Predicting Amino acid changes
 
-Determining whether a change at a particular base will lead to a different amino acid can be performed using one of the many `BSgenome...` packages in Bioconductor. These packages provide a pre-built database of genome sequence for various organisms. They allow us to query particular regions of the genome and return the results in a `Biostrings`-compatible format. We have already seen that `Biostrings` allows us to perform various computations on DNA sequences; including the ability to translate DNA to RNA. 
+Determining whether a change at a particular base will lead to a different amino acid can be performed using one of the many `BSgenome...` packages in Bioconductor. These packages provide a pre-built database of genome sequence for various organisms. They allow us to query particular regions of the genome and return the results in a `Biostrings`-compatible format. We have already seen that `Biostrings` allows us to perform various computations on DNA sequences; including the ability to retrieve the DNA sequence for a particular genomic region and translate DNA to RNA. 
+
+```{r}
+library(BSgenome.Hsapiens.UCSC.hg19)
+hg19 <-BSgenome.Hsapiens.UCSC.hg19
+getSeq(hg19, GRanges("chr20", IRanges(76960,76962)))
+translate(getSeq(hg19, GRanges("chr20", IRanges(76960,76962))))
+```
+
 
 There is a function, `predictCoding` that will do all the predictions for us. In order to make use of this function, we need to have loaded a pre-built genome in `Biostrings` format. There are many such packages listed on the bioconductor web page. The one we need is `BSgenome.Hsapiens.UCSC.hg19`
 
 ```{r}
-library(BSgenome.Hsapiens.UCSC.hg19)
 coding.pred <- predictCoding(NA12878.calls, txdb, seqSource=Hsapiens)
 ```
 
@@ -423,12 +440,15 @@ coding.pred[coding.pred$CONSEQUENCE == "frameshift"]
 
 ## Summary
 
-- We have used a common genotype caller `freebayes` to call SNVs from a set of healthy individuals
-    + there are many paramters that can be tweaked
+- We have used a respected genotype caller `freebayes` to call SNVs from a set of healthy individuals
+    + there are many paramters that can be tweaked that we haven't described here
 - The `.vcf` format contains a rich description of the called variants
-- Bioconducor tools can be used to import and parse vcf files
+- Bioconducor tools can be used to import and parse `.vcf` files
 - We can use `GenomicRanges` to overlap our calls with other genomic features of interest
-
+- Production-level manipulation of `.vcf` would probably involve other non-R tools
+    + [bedtools](http://bedtools.readthedocs.io/en/latest/)
+    + [vcftools](https://vcftools.github.io/index.html)
+  
 
 ## EXTRA:- Producing an output table
 
