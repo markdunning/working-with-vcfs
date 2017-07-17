@@ -1,8 +1,10 @@
 ---
 title: "Working with VCF files"
-author: "Mark Dunning"
 date: '`r format(Sys.time(), "Last modified: %d %b %Y")`'
-output: html_document
+output: 
+  html_notebook: 
+    toc: yes
+    toc_float: yes
 ---
 
 # Introduction
@@ -40,12 +42,11 @@ We are going to use `freebayes` to call SNVs on some *1000 genomes* samples. In 
 
 The minimal requirements to run `freebayes` (and why it is appealing for this practical!) are a reference genome and a `.bam` file. The `-f` parameter is used to specify the location of a reference genome in `.fasta` format. 
 
-The reference file is in the folder `/home/participant/Course_Materials/ref_data`. However, rather than having the write the full *path* to the file, we can write the path relative to our current working directory (which is `/home/participant/Course_Materials/Day2`). When specifying the location of the files the `../` means to go one directory "*up*" from the current working directory. 
 
 ***Please don't run this next command*** 
 
 ```{}
-freebayes -f ../ref_data/Homo_sapiens_assembly19.fasta ../data/hapmap/NA12878.chr20.bam
+freebayes -f /reference_data/Homo_sapiens_assembly19.fasta /data/hapmap/NA12878.chr20.bam
 ```
 
 If you did run that command, you would quickly see that the screen gets filled with lots of text. These are the calls that `freebayes` is making being printed to the screen (the standard output for some unix commands). If you find yourself in this situation, a swift press of `CTRL + C` should stop the tool from running.
@@ -55,7 +56,7 @@ What we need to do is *direct the output* to a file. We can call the output file
 Although it is not mandatory, we give the output file the extension `.vcf`. The `.vcf` format is a commonly-adopted standard for variant calls, which we will look into detail now.
 
 ```{}
-freebayes -f ../ref_data/Homo_sapiens_assembly19.fasta ../data/hapmap/NA12878.chr20.bam > NA12878.chr20.freebayes.vcf
+freebayes -f /reference_data/Homo_sapiens_assembly19.fasta /data/hapmap/NA12878.chr20.bam > NA12878.chr20.freebayes.vcf
 ```
 
 ## Understanding the vcf format
@@ -155,7 +156,7 @@ So for this particular variant, in the sample `NA12878` there is a genotype of `
 To understand the vcf format better, we can use another mode of operation of `freebayes` which is to call genotypes on multiple samples simultaneously. We can also specify an exact region of the genome to call genotypes to speed-up the processing.
 
 ```{}
-freebayes -f ../ref_data/Homo_sapiens_assembly19.fasta --region 20:500000-800000 ../data/hapmap/NA12878.chr20.bam ../data/hapmap/NA12873.chr20.bam ../data/hapmap/NA12874.chr20.bam > combined.chr20.subset.freebayes.vcf
+freebayes -f /reference_data/Homo_sapiens_assembly19.fasta --region 20:500000-800000 /data/hapmap/NA12878.chr20.bam /data/hapmap/NA12873.chr20.bam /data/hapmap/NA12874.chr20.bam > combined.chr20.subset.freebayes.vcf
 
 ```
 
@@ -184,6 +185,8 @@ After running these commands, you should see that the files `combined.chr20.subs
 These files can be viewing in IGV and as usual we can zoom-in and scroll along the genome. Each `.vcf` introduces two tracks into the IGV data panel; the first gives information about the variant, and the second is for sample-specific information.
 
 ******
+******
+******
 
 ### Exercise
 
@@ -194,31 +197,16 @@ These files can be viewing in IGV and as usual we can zoom-in and scroll along t
 - What do the light and dark blue rectangles in the sample-specific tracks refer to?
 - What SNPs are shared between the different samples?
     + are any unique to a particular sample?
+- Load the corresponding `bam` files to complement our understanding of the calls
 
     
+******
+******
 ******
 
 To dig-into these files further, we will use tools within Bioconductor. Our goal will be to find calls that are in common between different samples, and what SNPs occur within coding regions. For completeness, we note that other command-line tools can be used to perform these operations (the [bedtools](http://bedtools.readthedocs.io/en/latest/) suite for example). However, we should be reasonably comfortable with R by now and the package we use interacts nicely with the `GenomicRanges` concepts we discussed yesterday.
 
 ## Importing into Bioconductor
-
-### Working directory
-
-***Session*** -> ***Set Working Directory*** -> ***Choose Directory***
-
-```{}
-/home/participant/Course_Materials/Day2/
-```
-
-### Template
-
-```{}
-/home/participant/Course_Materials/Day2/Session1-template.Rmd
-```
-
-
-
-### Multi-sample example
 
 The `VariantAnnotation` package allows `.vcf` files to be imported. The `readVcf` function can be used and requires the file of a vcf file. You also need to specify a genome name. As we have seen already with other Bioconductor objects, typing the name of the object will print a summary to the screen. In the case of a "`CollapsedVCF`" object this is very detailed
 
@@ -229,17 +217,9 @@ hapmap.calls <- readVcf("combined.chr20.subset.freebayes.vcf","hg19")
 ```
 
 
-```{r eval=FALSE}
-hapmap.calls
-```
 
 The "header" information can be extracted using `header`. This will contain the definitions of all the per-genotype (`INFO`) and per-sample information stored in the file
 
-```{r eval=FALSE}
-header(hapmap.calls)
-info(header(hapmap.calls))
-geno(header(hapmap.calls))
-```
 
 ```{r echo=FALSE}
 info(header(hapmap.calls))[1:3,]
@@ -264,9 +244,21 @@ info(hapmap.calls)[1:3,1:5]
 
 `DP` gives the depth observed at each position, which is given to us in the form of a vector. By looking at the distribtion of the depths, we see some variants with extremely low coverage. Later-on, we will see how we can develop filters to remove unreliable calls from our dataset. Variants with low depth would seem to be a good candidate for exclusion.
 
-```{r}
-hist(info(hapmap.calls)$DP)
-```
+******
+******
+******
+
+### Exercise
+
+- Using the `info` from the vcf file, plot the distribution of depth observed at each position
+- How many calls were observed at depth 50 or above?
+
+
+******
+******
+******
+
+
 
 
 ## Accessing genotypes
@@ -283,12 +275,14 @@ Usually each entry is `0/0` for a homozygous reference, `0/1` for a heterozygous
 table(geno(hapmap.calls)$GT[,1])
 table(geno(hapmap.calls)$GT[,2])
 table(geno(hapmap.calls)$GT[,1], geno(hapmap.calls)$GT[,2])
+
+
 ```
 
 
 ## Variant locations
 
-In this  section we will see how we can overlap the calls we have made with other genomic features, such as the pre-built gene models that we saw yesterday.
+In this section we will see how we can overlap the calls we have made with other genomic features. For example, we are often interested in how many calls were made within a particular gene of interest. 
 
 For this section, we are going to use all calls made on chromosome 20 for a single sample; `NA12878`. As we discovered yesterday, it can be problematic trying to perform overlaps when the chromosome naming convention is not consistent between files. Consequently, we are going to rename our variants to the `UCSC` style from the start.
 
@@ -318,129 +312,42 @@ NA12878.calls.ranges[1:3]
 
 We saw yesterday how to retrieve the coordinates for all genes in a given organism and genome-build. For this example, we can again use the package `TxDb.Hsapiens.UCSC.hg19.knownGene`
 
+Let's say we want the  `NA12878` variants that have been called within the gene "PRND"
+
+- this gene has an Entrez ID of "23627"
+
 ```{r message=FALSE}
 library(TxDb.Hsapiens.UCSC.hg19.knownGene)
 txdb <- TxDb.Hsapiens.UCSC.hg19.knownGene
-
+exons <- exonsBy(txdb, "gene")
+mygene <- exons[["23627"]]
+NA12878.calls.ranges[NA12878.calls.ranges %over% mygene]
+countOverlaps(mygene, NA12878.calls.ranges)
 ```
 
-******
-******
-******
-
-### Exercise
-
-Find and count all `NA12878` variants that have been called within the gene "PRND"
-
-- this gene has an Entrez ID of "23627"
-    + recall the `exonsBy` and `%over%`, `countOverlaps` functions from yesterday....
-- check your answer in IGV
-
-```{r echo=FALSE}
-
-```
-
-******
-******
-******
 
 We are not just restricted to overlapping with these pre-defined gene models. If we have a set of generic regions in `.bed` or similar format we can import as a `GRanges` object using the `rtracklayer` package and call the `countOverlaps` and `%over%` functions as usual.
 
-```{r eval=FALSE}
-library(rtracklayer)
-regions <- import("regions.of.interest.bed")
-regions
-NA12878.calls.ranges[NA12878.calls.ranges %over% regions]
-countOverlaps(regions, NA12878.calls.ranges)
-```
 
 
-
-## More-automated location of variants
-
-With a bit of scripting it would be possible to *loop* through a series of gene locations and identify which gene each variant is located within. However, there is a convenience function `locateVariants` that will do the hard work for us. It has flexibility to allow us to search for variants within coding, intergenic or other regions. For example, adding the `CodingVariants()`argument tells the function to look for variants within coding sequences. You can see the help for `locateVariants` (`?locateVariants`) for information on the various options.
-
-As this function runs you should see some message sbout `select()' returned many:1 mapping between keys and columns`. This is because some variants might be located within multiple transcripts for the same gene.
-
-```{r warning=FALSE}
-locs <- locateVariants(NA12878.calls.ranges, txdb, CodingVariants())
-```
-
-```{r eval=FALSE}
-locs
-```
-
-```{r echo=FALSE}
-locs[1:3]
-```
-
-This annotation step has put *Entrez IDs* into the `locs` object, which is great if we want overlap with transcript databases. However, we are more likely to be familiar with gene symbols. We can do a look-up using the `org.Hs.eg.db` package that we saw yesterday and add the identifiers we retrieve to the table.
-
-```{r}
-library(org.Hs.eg.db)
-symbol <- select(org.Hs.eg.db, keys=mcols(locs)$GENEID, keytype = "ENTREZID", columns="SYMBOL")
-head(symbol)
-mcols(locs)$SYMBOL <- symbol[,2]
-locs
-```
+******
+******
+******
 
 
-If we want, we can locate all the variants with respect to the nearest feature (in the case of intergenic variants).  
+### Exercise
 
-```{r warning=FALSE, message=FALSE}
-all.locs <- locateVariants(NA12878.calls.ranges, txdb, AllVariants())
-```
+- Use `rtracklayer` to import the file `regions.of.interest.bed`
+- Find the number of calls within each region using `countOverlaps`
 
-```{r eval=FALSE}
-all.locs
-table(all.locs$LOCATION)
-```
-
-```{r echo=FALSE}
-all.locs[1:4]
-table(all.locs$LOCATION)
-```
-
-
-## Predicting Amino acid changes
-
-Determining whether a change at a particular base will lead to a different amino acid can be performed using one of the many `BSgenome...` packages in Bioconductor. These packages provide a pre-built database of genome sequence for various organisms. They allow us to query particular regions of the genome and return the results in a `Biostrings`-compatible format. We have already seen that `Biostrings` allows us to perform various computations on DNA sequences; including the ability to retrieve the DNA sequence for a particular genomic region and translate DNA to RNA. 
-
-```{r}
-library(BSgenome.Hsapiens.UCSC.hg19)
-hg19 <-BSgenome.Hsapiens.UCSC.hg19
-getSeq(hg19, GRanges("chr20", IRanges(76960,76962)))
-translate(getSeq(hg19, GRanges("chr20", IRanges(76960,76962))))
-```
-
-
-There is a function, `predictCoding` that will do all the predictions for us. In order to make use of this function, we need to have loaded a pre-built genome in `Biostrings` format. There are many such packages listed on the bioconductor web page. The one we need is `BSgenome.Hsapiens.UCSC.hg19`
-
-```{r}
-coding.pred <- predictCoding(NA12878.calls, txdb, seqSource=Hsapiens)
-```
-
-```{r eval=FALSE}
-coding.pred 
-table(coding.pred $CONSEQUENCE)
-```
-
-```{r echo=FALSE}
-coding.pred [1:3]
-table(coding.pred $CONSEQUENCE)
-```
-
-Probably the most interesting variants that cause a change in protein; which are called ***nonsynonymous***, or those that cause a *frameshift* or *nonsense* mutation
-
-```{r}
-coding.pred[coding.pred$CONSEQUENCE == "nonsense"]
-coding.pred[coding.pred$CONSEQUENCE == "frameshift"]
-```
+******
+******
+******
 
 
 ## Summary
 
-- We have used a respected genotype caller `freebayes` to call SNVs from a set of healthy individuals
+- We have used a respectable genotype caller `freebayes` to call SNVs from a set of healthy individuals
     + there are many paramters that can be tweaked that we haven't described here
 - The `.vcf` format contains a rich description of the called variants
 - Bioconducor tools can be used to import and parse `.vcf` files
@@ -450,93 +357,30 @@ coding.pred[coding.pred$CONSEQUENCE == "frameshift"]
     + [vcftools](https://vcftools.github.io/index.html)
   
 
-## EXTRA:- Producing an output table
-
-To recap, we have information in the following tables
-
-- `NA12878.calls.ranges` which has locations, details of the base-changes and a quality-score for each variant
-- A table of variants which occur in the coding region of genes; `locs`
-- meta information about the quality of each call; `info(NA12878.calls)`
-
-Our task now is to combine these into one data frame, which we can start by converting each component into a data frame. We don't need all the columns from the `NA12878.calls.ranges` object as we already have the genomic location in the `locs.df` data frame. Consequently we can extract the meta data only using the function `meta`.
-
-```{r}
-locs.df <- as.data.frame(locs)
-dim(locs.df)
-meta <- mcols(NA12878.calls.ranges)
-head(meta)
-dim(meta)
-info.df <- info(NA12878.calls)
-dim(info.df)
-```
-
-As not all variants are inside coding regions, the number of rows in `locs` is not the same as the total number of variants. However, the column `locs$QUERYID` gives an index that we can use to look-up the relevant rows in the complete set of calls. Below we show how the extract data fror the first five coding variants.
-
-```{r}
-locs.df[1:5,]
-locs.df$QUERYID[1:5]
-NA12878.calls.ranges[locs.df$QUERYID[1:5],]
-```
-
-
-******
-******
-******
-
-### Exercise
-
-Construct a data frame containing:-
-
-- The `locs.df` data frame with details of all the coding variants
-- The metadata from the ranges object in the `meta` data frame
-- `INFO` columns `DP`, `NS`, `RO` and `AO` from `info.df`
-    + or any other columns you think might be of interest
-- Write this data frame to a tab-delimited text file
-
-```{r echo=FALSE}
-
-infoMat <- info(NA12878.calls)
-query.ids <- locs.df$QUERYID
-df <- data.frame(locs.df, meta[query.ids,], infoMat[query.ids,c("DP","NS", "RO","AO")])
-head(df)
-write.table(df, file="NA12878.chr20.coding.annotated.txt",sep="\t")
-```
-
-******
-******
-******
-
 # <a name="appendix"></a> Appendix
 
 ## Files used in session
 
 Commands used to generate bam files for genotype calling
 
-- First, get a copy of the reference genome from the 1000 genomes FTP site
-
-```{}
-wget ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/reference/Homo_sapiens_assembly19.fasta.gz -P ../ref_data/
-gunzip ../ref_data/Homo_sapiens_assembly19.fasta.gz
-
-```
 
 - We have already seen how `samtools` can be used to view aligned reads in `.bam` format. In fact, the `.bam` does not need to be stored locally on our desktop machine, and can be an FTP link. Here we `view` the remote link to the bam file and extract only the chromosome 22 reads. 
 
 ```{}
-samtools view -h ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/other_exome_alignments/NA19239/exome_alignment/NA19239.mapped.solid.mosaik.YRI.exome.20111114.bam 22 | samtools view -bS - > data/hapmap/NA19239.chr22.bam
-samtools index data/hapmap/NA19239.chr22.bam
+samtools view -h ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/other_exome_alignments/NA19239/exome_alignment/NA19239.mapped.solid.mosaik.YRI.exome.20111114.bam 22 | samtools view -bS - > /data/hapmap/NA19239.chr22.bam
+samtools index /data/hapmap/NA19239.chr22.bam
 
 ```
 
 ```{}
-samtools view -h ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/other_exome_alignments/NA19238/exome_alignment/NA19238.mapped.illumina.mosaik.YRI.exome.20111114.bam 22 | samtools view -bS - > data/hapmap/NA19238.chr22.bam
-samtools index data/hapmap/NA19238.chr22.bam
+samtools view -h ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/other_exome_alignments/NA19238/exome_alignment/NA19238.mapped.illumina.mosaik.YRI.exome.20111114.bam 22 | samtools view -bS - > /data/hapmap/NA19238.chr22.bam
+samtools index /data/hapmap/NA19238.chr22.bam
 
 ```
 
 ```{}
 samtools view -h ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/other_exome_alignments/NA19240/exome_alignment/NA19240.mapped.solid.mosaik.YRI.exome.20111114.bam 22 | samtools view -bS - > data/hapmap/NA19240.chr22.bam
-samtools index data/hapmap/NA19240.chr22.bam
+samtools index /data/hapmap/NA19240.chr22.bam
 ```
 
 
