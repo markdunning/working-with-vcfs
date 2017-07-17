@@ -23,17 +23,17 @@ We will use the [freebayes](https://github.com/ekg/freebayes#readme) genotype ca
 
 - freely-available with an open-source licence
 - easy to run and minimal command-line parameters to specify
+- it is Bayesian; which we like
 - gives reasonable results
 
 `freebayes` is a command-line tool that you will need to run from the terminal. As with all command-line tools, we first need to make sure that we are located in the correct directory. Remember that we can *change directory* using the unix command `cd`.
 
+
+`freebayes` has already been in the ***CRUK Docker***. However, we can make sure that `freebayes` is available by typing `freebayes` at the terminal. This will give a basic description, a version number, and information about how to cite the package (very important if you end-up using the tool to generate results for your paper). Adding the *parameter* `-h` will display more-detailed help about the tool and some examples of how to use it.
+
+
 ```{}
 cd /home/participant/Course_Materials/Day2/
-```
-
-`freebayes` has already been installed for you on your desktop machine (or in the *docker* image, if you are using that). However, we can make sure that `freebayes` is available by typing `freebayes` at the terminal. This will give a basic description, a version number, and information about how to cite the package (very important if you end-up using the tool to generate results for your paper). Adding the *parameter* `-h` will display more-detailed help about the tool and some examples of how to use it.
-
-```{}
 freebayes
 freebayes -h
 ```
@@ -221,10 +221,6 @@ hapmap.calls <- readVcf("combined.chr20.subset.freebayes.vcf","hg19")
 The "header" information can be extracted using `header`. This will contain the definitions of all the per-genotype (`INFO`) and per-sample information stored in the file
 
 
-```{r echo=FALSE}
-info(header(hapmap.calls))[1:3,]
-geno(header(hapmap.calls))[1:3,]
-```
 
 ## `INFO`
 
@@ -236,9 +232,6 @@ The name of each row is derived from the genomic location and base-change for ea
 info(hapmap.calls)
 ```
 
-```{r echo=FALSE}
-info(hapmap.calls)[1:3,1:5]
-```
 
 `NS` represents the number of samples with data. We would expect this to be 3 in all cases. However, as we are dealing with low-coverage data there are some sites where data could not be observed for all samples.
 
@@ -260,16 +253,30 @@ info(hapmap.calls)[1:3,1:5]
 
 
 
+If we take an arbitrary cut-off of 25, we could identify which variants have sufficient depth and then write the result to another `.vcf` file.
+
+```{r}
+enoughDepth <- which(info(hapmap.calls)$DP > 25)
+writeVcf(hapmap.calls[enoughDepth], filename = "combined.chr20.subset.freebayes.highDepth.vcf")
+```
+
+
 
 ## Accessing genotypes
 
-The called genotypes can be accessed using the `geno` function. Recall that in the `.vcf` file, we have one column of genotype information for each sample, with each column consisting of `key:value` pairs. Using `geno` we can access all the values for a particular keys and be able to compare across samples. For example, the called genotypes are accessed as follows:-
+The called genotypes can be accessed using the `geno` function. Recall that in the `.vcf` file, we have one column of genotype information for each sample, with each column consisting of `key:value` pairs. Using `geno` we can access all the values for a particular keys and be able to compare across samples. 
+
+The column names of the data frame returned by `geno` are the same as the `FORMAT` in the `.vcf` description. Thus we can use a `$` operator to access a particular set of values; `GT` in this case
 
 ```{r}
 geno(hapmap.calls)
 head(geno(hapmap.calls)$GT)
 ```
-Usually each entry is `0/0` for a homozygous reference, `0/1` for a heterozygous call and `1/1` for a homozyous alternate allele. An entry of `.` indicates a position where no call could be made due to insufficient data. Moreover, we can also find `0/2` and `1/2` in rare cases where a second alternative allele was found. With `table` we can tabulate the calls between one sample and another
+The output allows us to compare the genotype for a particular variant across all samples; which we could not easily do from the `.vcf`.
+
+Usually each entry is `0/0` for a homozygous reference, `0/1` for a heterozygous call and `1/1` for a homozyous alternate allele. An entry of `.` indicates a position where no call could be made due to insufficient data. Moreover, we can also find `0/2` and `1/2` in rare cases where a second alternative allele was found. 
+
+With `table` we can tabulate the calls between one sample and another
 
 ```{r}
 table(geno(hapmap.calls)$GT[,1])
@@ -278,6 +285,20 @@ table(geno(hapmap.calls)$GT[,1], geno(hapmap.calls)$GT[,2])
 
 
 ```
+
+******
+******
+******
+
+### Exercise
+
+- Find the variants that are called Heterozygous in all three samples
+- Create a new `.vcf` file containing just these heterozygous variants
+
+******
+******
+******
+
 
 
 ## Variant locations
@@ -328,14 +349,11 @@ countOverlaps(mygene, NA12878.calls.ranges)
 
 We are not just restricted to overlapping with these pre-defined gene models. If we have a set of generic regions in `.bed` or similar format we can import as a `GRanges` object using the `rtracklayer` package and call the `countOverlaps` and `%over%` functions as usual.
 
-
-
 ******
 ******
 ******
-
-
 ### Exercise
+
 
 - Use `rtracklayer` to import the file `regions.of.interest.bed`
 - Find the number of calls within each region using `countOverlaps`
@@ -364,25 +382,39 @@ We are not just restricted to overlapping with these pre-defined gene models. If
 Commands used to generate bam files for genotype calling
 
 
-- We have already seen how `samtools` can be used to view aligned reads in `.bam` format. In fact, the `.bam` does not need to be stored locally on our desktop machine, and can be an FTP link. Here we `view` the remote link to the bam file and extract only the chromosome 22 reads. 
 
 ```{}
+<<<<<<< HEAD
 samtools view -h ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/other_exome_alignments/NA19239/exome_alignment/NA19239.mapped.solid.mosaik.YRI.exome.20111114.bam 22 | samtools view -bS - > /data/hapmap/NA19239.chr22.bam
 samtools index /data/hapmap/NA19239.chr22.bam
+=======
+wget ftp://ftp.ncbi.nlm.nih.gov/1000genomes/ftp/phase3/data/NA12878/alignment/NA12878.chrom20.ILLUMINA.bwa.CEU.low_coverage.20121211.bam -O NA12878.chr20.bam
+samtools index NA12878.chr20.bam
+>>>>>>> 7e24e45c189ca9e61dd5cafee8d348893b18c69c
 
-```
+wget ftp://ftp.ncbi.nlm.nih.gov/1000genomes/ftp/phase3/data/NA12874/alignment/NA12874.chrom20.ILLUMINA.bwa.CEU.low_coverage.20130415.bam -O NA12874.chr20.bam
+samtools index NA12874.chr20.bam
 
+<<<<<<< HEAD
 ```{}
 samtools view -h ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/other_exome_alignments/NA19238/exome_alignment/NA19238.mapped.illumina.mosaik.YRI.exome.20111114.bam 22 | samtools view -bS - > /data/hapmap/NA19238.chr22.bam
 samtools index /data/hapmap/NA19238.chr22.bam
+=======
+>>>>>>> 7e24e45c189ca9e61dd5cafee8d348893b18c69c
 
-```
+wget ftp://ftp.ncbi.nlm.nih.gov/1000genomes/ftp/phase3/data/NA12873/alignment/NA12873.chrom20.ILLUMINA.bwa.CEU.low_coverage.20130415.bam -O NA12873.chr20.bam
+samtools index NA12873.chr20.bam
 
+<<<<<<< HEAD
 ```{}
 samtools view -h ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/other_exome_alignments/NA19240/exome_alignment/NA19240.mapped.solid.mosaik.YRI.exome.20111114.bam 22 | samtools view -bS - > data/hapmap/NA19240.chr22.bam
 samtools index /data/hapmap/NA19240.chr22.bam
+=======
+wget http://www.broadinstitute.org/ftp/pub/seq/references/Homo_sapiens_assembly19.fasta
+wget http://www.broadinstitute.org/ftp/pub/seq/references/Homo_sapiens_assembly19.fasta.fai
+wget http://www.broadinstitute.org/ftp/pub/seq/references/Homo_sapiens_assembly19.dict
+>>>>>>> 7e24e45c189ca9e61dd5cafee8d348893b18c69c
 ```
-
 
 
 
