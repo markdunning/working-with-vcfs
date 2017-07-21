@@ -55,20 +55,21 @@ What we need to do is *direct the output* to a file. We can call the output file
 
 Although it is not mandatory, we give the output file the extension `.vcf`. The `.vcf` format is a commonly-adopted standard for variant calls, which we will look into detail now.
 
+We also restrict the analysis to a particular region to speed things up
 ```{}
-freebayes -f /reference_data/Homo_sapiens_assembly19.fasta /data/hapmap/NA12878.chr20.bam > NA12878.chr20.freebayes.vcf
+freebayes -f /reference_data/Homo_sapiens_assembly19.fasta --region 20:500000-800000 /data/hapmap/NA12878.chr20.bam > NA12878.chr20.subset.freebayes.vcf
 ```
 
 ## Understanding the vcf format
 
 The vcf format was initially developed by the [1000 Genomes Project](http://www.1000genomes.org/wiki/Analysis/vcf4.0), and ownership has been subsequently transferred to [Global Alliance for Genomics and Health Data Working group file format team](http://ga4gh.org/#/fileformats-team). The format can be used to represent information about all kinds of genomic variation. In this session we will just consider SNVs.
 
-We don't require any specialised software to look at the contents of a vcf file. They *can* be opened in a bog-standard text editor.For now, navigate to the folder and right-click on `NA12878.chr20.freebayes.vcf`. Select the option to open with `gedit` (a common text editor for Ubuntu).
+We don't require any specialised software to look at the contents of a vcf file. They *can* be opened in a bog-standard text editor.For now, navigate to the folder and right-click on `NA12878.chr20.subset.freebayes.vcf`. Select the option to open with `gedit` (a common text editor for Ubuntu).
 
 
 In a similar vein to the `.bam` and `.sam` files we saw earlier, the `.vcf` files contains many lines of header information.
 ```{r echo=FALSE,comment=NA}
-cat(system("head NA12878.chr20.freebayes.vcf",intern=TRUE),sep="\n")
+cat(system("head NA12878.chr20.subset.freebayes.vcf",intern=TRUE),sep="\n")
 
 ```
 
@@ -89,7 +90,7 @@ After many more lines of information, we finally get to the details of the actua
 Shown here is the information about the first five calls
 
 ```{r echo=FALSE,comment=NA}
-cat(system("grep -v '##' NA12878.chr20.freebayes.vcf | head -n5",intern = TRUE),sep = "\n")
+cat(system("grep -v '##' NA12878.chr20.subset.freebayes.vcf | head -n5",intern = TRUE),sep = "\n")
 ```
 
 
@@ -118,16 +119,16 @@ knitr::kable(df[1:10,])
 The meaning of each `KEY`  is given in the header for the `.vcf` file.
 
 ```{r echo=FALSE}
-cat(system("grep 'ID=AB,' NA12878.chr20.freebayes.vcf | head -n1",intern=TRUE))
-cat(system("grep 'ID=ABP,' NA12878.chr20.freebayes.vcf | head -n1",intern=TRUE))
-cat(system("grep 'ID=AC,' NA12878.chr20.freebayes.vcf | head -n1",intern=TRUE))
-cat(system("grep 'ID=AF,' NA12878.chr20.freebayes.vcf | head -n1",intern=TRUE))
-cat(system("grep 'ID=AN,' NA12878.chr20.freebayes.vcf | head -n1",intern=TRUE))
-cat(system("grep 'ID=AO,' NA12878.chr20.freebayes.vcf | head -n1",intern=TRUE))
-cat(system("grep 'ID=CIGAR,' NA12878.chr20.freebayes.vcf | head -n1",intern=TRUE))
-cat(system("grep 'ID=DP,' NA12878.chr20.freebayes.vcf | head -n1",intern=TRUE))
-cat(system("grep 'ID=DPB,' NA12878.chr20.freebayes.vcf | head -n1",intern=TRUE))
-cat(system("grep 'ID=DPRA,' NA12878.chr20.freebayes.vcf | head -n1",intern=TRUE))
+cat(system("grep 'ID=AB,' NA12878.chr20.subset.freebayes.vcf | head -n1",intern=TRUE))
+cat(system("grep 'ID=ABP,' NA12878.chr20.subset.freebayes.vcf | head -n1",intern=TRUE))
+cat(system("grep 'ID=AC,' NA12878.chr20.subset.freebayes.vcf | head -n1",intern=TRUE))
+cat(system("grep 'ID=AF,' NA12878.chr20.subset.freebayes.vcf | head -n1",intern=TRUE))
+cat(system("grep 'ID=AN,' NA12878.chr20.subset.freebayes.vcf | head -n1",intern=TRUE))
+cat(system("grep 'ID=AO,' NA12878.chr20.subset.freebayes.vcf | head -n1",intern=TRUE))
+cat(system("grep 'ID=CIGAR,' NA12878.chr20.subset.freebayes.vcf | head -n1",intern=TRUE))
+cat(system("grep 'ID=DP,' NA12878.chr20.subset.freebayes.vcf | head -n1",intern=TRUE))
+cat(system("grep 'ID=DPB,' NA12878.chr20.subset.freebayes.vcf | head -n1",intern=TRUE))
+cat(system("grep 'ID=DPRA,' NA12878.chr20.subset.freebayes.vcf | head -n1",intern=TRUE))
 
 ```
 
@@ -175,12 +176,12 @@ One easy way of being able to visualise the calls is to use the IGV browser. Bef
 bgzip -c combined.chr20.subset.freebayes.vcf > combined.chr20.subset.freebayes.vcf.gz
 tabix -p  vcf combined.chr20.subset.freebayes.vcf.gz
 
-bgzip -c NA12878.chr20.freebayes.vcf > NA12878.chr20.freebayes.vcf.gz
-tabix -p vcf NA12878.chr20.freebayes.vcf.gz
+bgzip -c NA12878.chr20.subset.freebayes.vcf > NA12878.chr20.subset.freebayes.vcf.gz
+tabix -p vcf NA12878.chr20.subset.freebayes.vcf.gz
 
 ```
 
-After running these commands, you should see that the files `combined.chr20.subset.freebayes.vcf.gz`, `combined.chr20.subset.freebayes.vcf.gz.tbi`, `NA12878.chr20.freebayes.vcf.gz` and `NA12878.chr20.freebayes.vcf.gz.tbi` have been created in your working directory.
+After running these commands, you should see that the files `combined.chr20.subset.freebayes.vcf.gz`, `combined.chr20.subset.freebayes.vcf.gz.tbi`, `NA12878.chr20.subset.freebayes.vcf.gz` and `NA12878.chr20.subset.freebayes.vcf.gz.tbi` have been created in your working directory.
 
 These files can be viewing in IGV and as usual we can zoom-in and scroll along the genome. Each `.vcf` introduces two tracks into the IGV data panel; the first gives information about the variant, and the second is for sample-specific information.
 
@@ -191,7 +192,7 @@ These files can be viewing in IGV and as usual we can zoom-in and scroll along t
 ### Exercise
 
 - Load IGV
-- Select the files `NA12878.chr20.freebayes.vcf.gz` and `combined.chr20.subset.freebayes.vcf.gz` from the `File -> Open` menu
+- Select the files `NA12878.chr20.subset.freebayes.vcf.gz` and `combined.chr20.subset.freebayes.vcf.gz` from the `File -> Open` menu
 - Navigate to `chr20:500,900-505,630`
 - Verify that the same information from the `.vcf` is shown in IGV
 - What do the light and dark blue rectangles in the sample-specific tracks refer to?
